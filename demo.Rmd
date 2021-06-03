@@ -1,0 +1,49 @@
+---
+title: "Demo Rmarkdown"
+author: "DL"
+date: '2021-06-03'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, fig.path = 'figures/')
+```
+
+```{r libraries, include = FALSE}
+library(feather)
+library(dplyr)
+library(ggplot2)
+library(kfigr)
+```
+
+```{r read-data}
+gene_counts <- read_feather('data/envision_rhodopsin_expression.feather')
+```
+
+```{r}
+top10families <- gene_counts %>%
+  group_by(family, sample) %>%
+  summarise(tpm = sum(tpm), .groups = 'drop_last') %>%
+  summarise(mean_tpm = mean(tpm), .groups = 'drop') %>%
+  slice_max(mean_tpm, n = 10)
+```
+
+# Results
+
+Some smart conclusions
+(`r figr('family-plot', T, type = 'Figure')`).
+
+```{r family-plot, fig.height = 8, fig.width = 12, fig.cap = '**Family distribution of rhodopsin genes**.'}
+gene_counts %>%
+  inner_join(top10families, by = 'family') %>%
+  group_by(family, sample) %>%
+  summarise(tpm = sum(tpm), .groups = 'drop') %>%
+  ggplot(aes(x = sample, y = tpm, fill = family)) +
+  geom_col() +
+  scale_fill_brewer(palette = 'Paired') +
+  theme(
+    axis.text.x = element_text(angle = 65, hjust = 1),
+    legend.position = 'right'
+  )
+```
+
