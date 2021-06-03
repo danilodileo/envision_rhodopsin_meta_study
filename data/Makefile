@@ -1,9 +1,6 @@
-COPY_TSV = scp rackham:projects/test/$@ .
+COPY_FILE = scp rackham:/home/danil/proj3/$@ .
 
-all: one.tsv two.tsv
+all: envision_rhodopsin_expression.feather
 
-one.tsv:
-	$(COPY_TSV)
-
-two.tsv:
-	$(COPY_TSV)
+envision_rhodopsin_expression.feather:
+	$(COPY_FILE)
