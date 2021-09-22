@@ -46,11 +46,21 @@ envision <- read_feather('data/envision_rhodopsin_expression.feather')
 
 # Introduction
 
+The aim was ...
+
 # Materials and Methods
+
+How I prepared the data...
 
 # Results
 
-```{r datatable-demo}
+Looking at the tpms, we saw that ...
+(`r figr('datatable-demo', T, type = 'Table')`).
+
+Also check
+(`r figr('sample-sums-plot', T, type = 'Figure')`).
+
+```{r datatable-demo, cache = FALSE}
 envision %>%
   group_by(domain = phylum, class, order, family, genus, species, sample) %>%
   summarise(tpm = sum(tpm), .groups = 'drop') %>%
@@ -58,6 +68,15 @@ envision %>%
   datatable(
     rownames = FALSE
   )
+```
+
+More text.
+
+```{r sample-sums-plot, fig.cap = '**Rhodopsin tpms in all Envision samples.**'}
+envision %>%
+  group_by(sample) %>% summarise(tpm = sum(tpm), .groups = 'drop') %>%
+  ggplot(aes(x = sample, y = tpm)) +
+  geom_col()
 ```
 
 
