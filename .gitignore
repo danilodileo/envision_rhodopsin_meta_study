@@ -11,7 +11,6 @@ RAxML_bootstrap*
 *.fastq*
 !*.fastq*.makecall
 *.fna
-*.gz
 *.pdf
 *.maf
 *.maf.gz
@@ -30,3 +29,13 @@ _cache
 .~*#
 *.html
 *_cache
+anvio
+data-not-to-upload
+magmap-analysis_cache
+magmap-analysis_files
+phylogenetic_placement
+magmap.output.k31.all.genomes
+scripts
+test_files
+magmap.output.only.local.genomes/
+magmap.output.k31.all.samples
