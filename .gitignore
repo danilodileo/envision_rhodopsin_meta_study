@@ -39,3 +39,4 @@ scripts
 test_files
 magmap.output.only.local.genomes/
 magmap.output.k31.all.samples
+comparison_metat_magmap*

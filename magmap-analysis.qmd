@@ -314,10 +314,10 @@ stats <- read_tsv(
 
 counts.rhodo.genomes <- read_tsv('data/magmap.output.rhodopsin.genomes.full.table.tsv.gz', show_col_types = FALSE)
 # Load meatadata Coast and Offshore
-metadata <- read_excel("data/environmental_parameters/metatada_summarized.xlsx")
+metadata <- read_excel("data/metatada_summarized.xlsx")
 
 # Load metadata Mesocosm
-metadata <- read_excel("data/environmental_parameters/metadata_summarized_mesocosm.xlsx") %>%
+metadata <- read_excel("data/metadata_summarized_mesocosm.xlsx") %>%
   mutate(sample = str_remove(sample, "_M[0-3]$") %>% paste0("_M")) %>%
   group_by(sample, day) %>%
   summarize(across(everything(), ~ if (is.numeric(.)) mean(., na.rm = TRUE) else first(.)), .groups = "drop") %>%
@@ -457,6 +457,7 @@ p3 <- counts.rhodo.genomes %>%
   ) +
   labs(fill = "site") +
   theme_minimal()
+
 p3
 ```
 
@@ -1005,6 +1006,78 @@ ggcorrplot(cor_matrix,
        subtitle = "No Significant Correlation Found Between PRD and Environmental Variables")
 ```
 
+```{r fig-spearman-prd-env-sign-level }
+#| label: fig-spearman-prd-env-sign-level
+#| fig.cap: "**Spearman correlation All environmental variables and rhodopsin:** Spearman correlation matrix between environmental variables and the abundance of rhodopsin genes across different samples. The correlation coefficients are shown in the plot, with no significant associations found between rhodopsin and environmental variables. Statistical significance was tested using pairwise correlation tests, but all correlations were non-significant (p-value > 0.05). In conclusion, no conclusive relationships were detected for rhodopsin in this analysis."
+#| fig-height: 9
+#| fig-width: 9
+#| warning: false
+#| echo: false
+
+# I will follow the same approach as before but this time I wll add prd
+# 1. Preapare the dataset by adding prd and removing S6 since I don't have DOC
+prd.metadata <- counts.rhodo.genomes %>%
+  dplyr::select(sample, preferred_name, tpm) %>%
+  filter(preferred_name == 'prd') %>%
+  dplyr::select(sample, tpm) %>%
+  group_by(sample) %>%
+  summarise( prd = sum(tpm), .groups = 'drop') %>%
+  right_join(metadata, join_by(sample)) %>%
+  filter(!is.na(prd)) %>%
+  filter(!str_detect(sample, "_S6$")) %>%
+  filter(!str_detect(sample, "_S3$")) %>%
+  dplyr::select(-day, -tn, -tin, -don)
+
+# Step 1
+# Select only numeric columns
+numeric_vars <- prd.metadata %>%
+  dplyr::select(where(is.numeric))
+
+# Ensure that all columns are numeric
+numeric_vars <- as.data.frame(lapply(numeric_vars, as.numeric))
+
+# Compute Spearman correlation matrix
+cor_matrix <- cor(numeric_vars, method = "spearman", use = "pairwise.complete.obs")
+
+# Compute p-value matrix
+p_value_matrix <- matrix(NA, nrow = ncol(numeric_vars), ncol = ncol(numeric_vars))
+rownames(p_value_matrix) <- colnames(numeric_vars)
+colnames(p_value_matrix) <- colnames(numeric_vars)
+
+for(i in 1:(ncol(numeric_vars)-1)) {
+  for(j in (i+1):ncol(numeric_vars)) {
+    test_result <- cor.test(numeric_vars[,i], numeric_vars[,j], method = "spearman")
+    p_value_matrix[i, j] <- test_result$p.value
+    p_value_matrix[j, i] <- test_result$p.value
+  }
+}
+
+# Convert matrices to data frames for ggplot2
+cor_df <- melt(cor_matrix)
+colnames(cor_df) <- c("Var1", "Var2", "Correlation")
+
+p_df <- melt(p_value_matrix)
+colnames(p_df) <- c("Var1", "Var2", "p_value")
+
+# Merge correlation and significance data
+plot_data <- merge(cor_df, p_df, by = c("Var1", "Var2"))
+
+# Define significance markers
+plot_data$Significance <- ifelse(plot_data$p_value < 0.001, "***", 
+                          ifelse(plot_data$p_value < 0.01, "**", 
+                                 ifelse(plot_data$p_value < 0.05, "*", "")))
+
+# Create heatmap with correlation values and significance markers
+ggplot(plot_data, aes(x = Var1, y = Var2, fill = Correlation)) +
+  geom_tile(color = "white") +  # Create heatmap tiles
+  geom_text(aes(label = paste0(round(Correlation, 2), Significance)), size = 4) +  # Add correlation values & significance
+  scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) +  # Color scale
+  theme_minimal() +
+  labs(title = "Spearman Correlation Heatmap with Significance",
+       fill = "Correlation") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
 ### PCA: prd vs environmental variables
 
 The **PCA plot** ( @fig-pca-prd-env ) shows that **DOC**, **DON**, and **Chla_less_3um** are somehow related and opposite to **prd**. This result is also consistent with the previous PCA when using only **environmental variables** @fig-pca-biplot.
@@ -1385,8 +1458,6 @@ ggplot(rhodopsin.scores, aes(RDA1, RDA2)) +
 
 -   **RDA** analysis on **rhodopsin genes** level and environmental variables showed a strong association with sMesocosm-Summer samples. A weak and opposite association is found instead for Coast-Spring samples. Winter season seem to affect the least the rhodopsin.
 
-
-
 ### Conclusion
 
 ::: callout-note
@@ -1564,18 +1635,6 @@ shannon_diversity <- diversity_data %>%
     shannon_index = -sum(relative_abundance * log(relative_abundance), na.rm = TRUE)
   )
 
-# View the Shannon Index for each sample
-# Plot Shannon Diversity Index across samples
-shannon.bar <- ggplot(shannon_diversity, aes(x = sample, y = shannon_index)) +
-  geom_bar(stat = "identity", fill = "skyblue", color = "black") +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 6)) +
-  labs(
-    title = "Shannon Diversity Index Across Samples",
-    x = "Sample",
-    y = "Shannon Diversity Index"
-  )
-
 # Add Shannon Index to diversity_data for plotting
 diversity_data <- diversity_data %>%
   inner_join(shannon_diversity, by = "sample")
@@ -1592,7 +1651,7 @@ shannon.box <- ggplot(diversity_data, aes(x = factor(site, levels = c("Offshore"
     fill = "Season"
   )
 
-shannon.bar + shannon.box + plot_annotation(tag_levels = 'A', title = "Shannon index plotted by sample (A) and based on sites and seasons (B).")
+shannon.box + plot_annotation(tag_levels = 'A', title = "Shannon index boxplotn based on sites and seasons.")
 ```
 
 #### Rhodopsin family distribution
