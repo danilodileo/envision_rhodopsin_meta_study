@@ -1,0 +1,491 @@
+---
+title: "Prepare table - ENVISION"
+author: "[Danilo Di Leo](https://github.com/danilodileo)"
+date: today
+format:
+  html:
+    toc: true
+    toc-title: "Table of Contents"
+    toc-depth: 2
+    toc-location: left
+    number-sections: true
+    code-fold: true
+    code-summary: "Show Code"
+    fig-width: 6
+    fig-height: 4
+    highlight-style: github
+    self-contained: true  
+editor: visual
+bibliography:
+  - grateful-refs.bib
+---
+
+```{r libraries}
+#| label: libraries
+#| message: false
+#| cache: false
+#| include: false
+#| warning: false
+
+library(readr)
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(purrr)
+library(stringr)
+library(ggplot2)
+library(ggrepel)
+library(kfigr)
+library(knitr)
+library(DT)
+library(grateful)
+library(patchwork)
+library(broom)
+library(gt)
+library(tibble)
+library(corrr)
+library(forcats)
+library(shiny)
+library(grid)
+library(ggvenn)
+library(vegan)
+library(reshape2)
+library(ggsignif)
+library(readxl)
+library(ggcorrplot)
+library(FactoMineR)
+library(factoextra)
+library(missMDA)
+library(kableExtra) # For tables
+library(compositions) # For CLR transformation
+library(pheatmap)
+library(gridExtra)
+library(tidytext)  # per reorder_within() e scale_x_reordered()
+library(shadowtext)
+library(gt)
+library(reactable)
+```
+
+```{r constant }
+# Set COG categories long names
+cog_mapping <- c(
+   'A' = 'RNA_process',
+   'B' = 'Chromatin_Struc',
+   'C' = 'Energy_prod',
+   'D' = 'Cell_cycle',
+   'E' = 'AA_metab',
+   'F' = 'Nucl_metab',
+   'G' = 'Carbohy_metab',
+   'H' = 'Coenz_metab',
+   'I' = 'Lipid_metab',
+   'J' = 'Tranlsation',
+   'K' = 'Transcription',
+   'L' = 'Replication',
+   'M' = 'Cell_wall',
+   'N' = 'Cell_motility',
+   'O' = 'Post-transl_mod',
+   'P' = 'Inorg_ion_transp',
+   'Q' = 'Sec_Structure',
+  'T' = 'Signal_Transduc',
+  'U' = 'Intracel_traf',
+  'Y' = 'Nucl_structure',
+  'Z' = 'Cytoskeleton',
+  'R' = 'Gen_Func',
+  'S' = 'Func_unknown',
+  '-' = 'Func_unknown'
+ )
+
+# sample order
+sample_order <- c(
+  "ENV1_D1_S3", "ENV1_D3_S3", "ENV1_D5_S3", "ENV1_D7_S3",
+  "ENV1_D1_S6", "ENV1_D3_S6", "ENV1_D5_S6", "ENV1_D7_S6",
+  "ENV2_D1_S3", "ENV2_D3_S3", "ENV2_D5_S3", "ENV2_D7_S3",
+  "ENV2_D1_S6", "ENV2_D3_S6", "ENV2_D5_S6", "ENV2_D7_S6",
+  "ENV3_D1_S3", "ENV3_D3_S3", "ENV3_D5_S3", "ENV3_D7_S3",
+  "ENV3_D1_S6", "ENV3_D3_S6", "ENV3_D5_S6", "ENV3_D7_S6"
+)
+```
+
+## Code explanation
+
+This quarto document is used in order to produce tables that can be used in the main analysis in other quarto documents (e.g. 'Fluctuation in photoheterotrophic community.qmd')
+
+The tables are produced from raw tables output of:
+
+-   nf-core/magmap
+
+-   eggnog-mapper
+
+-   targeted hmmer profiles
+
+## Formatting Count table
+
+```{r count-table}
+#| message: false
+#| cache: false
+#| include: false
+#| warning: false
+# Read counts table and format them
+counts <- read_tsv(
+  'summary_tables/magmap.CDS.counts.tsv.gz',
+  col_types = cols(
+    .default = col_double(), orf = col_character(), chr = col_character(),
+   sample = col_character(), strand = col_character()
+    )) %>%
+  select( -start, -end, -chr, -strand)
+
+# I need to get the average for the mesocosm samples
+# Step 1: Process `M` triplicates
+triplicates <- counts %>%
+  filter(str_detect(sample, "_M[0-3]$")) %>%
+  mutate(sample = str_remove(sample, "_M[0-3]$") %>% paste0("_M")) %>%
+  group_by(orf, length, sample) %>%
+  summarize(
+    count   = mean(count),
+    tpm     = mean(tpm),
+    sdcount = sd(count),
+    sdtpm   = sd(tpm), .groups = 'drop')
+
+
+# Step 2: Combine with the original dataframe
+counts <- counts %>%
+  filter(!str_detect(sample, "_M[0-3]$")) %>%  # Keep non-triplicate samples
+  mutate( sdcount = 0,
+          sdtpm   = 0) %>%
+  arrange(count, sdcount, tpm, sdtpm) %>%
+  bind_rows(triplicates)
+
+rm(triplicates)
+
+# bind counts with genomes_index + formatting the table
+counts <- counts %>%
+  mutate(
+    season = case_when(
+    startsWith(sample, "ENV1") ~ "Winter",
+    startsWith(sample, "ENV2") ~ "Spring",
+    startsWith(sample, "ENV3") ~ "Summer",
+    TRUE ~ "Unknown"  # Optional: label for cases that don't match any pattern
+    ),
+    season = factor(season, levels = c("Winter", "Spring", "Summer")),
+    site = case_when(
+      str_detect(sample, "S3") ~ "Coast",      # When "S3" is present
+      str_detect(sample, "S6") ~ "Offshore",   # When "S6" is present
+      str_detect(sample, "M") ~ "Mesocosm",   # When "M" is present
+      TRUE ~ "Other"                          # Optional: for any other case
+    ),
+    site = factor(site, levels = c("Offshore", "Coast", "Mesocosm"))
+  ) %>%
+  left_join(
+    read_tsv(
+      'summary_tables/magmap.genomes2orfs.tsv.gz', # load genome index for taxonomy annotation
+      show_col_types = FALSE
+    ),
+    by = "orf"
+    )
+
+orfs <- counts %>%
+  distinct(orf) %>%
+  pull(orf)
+```
+
+## Add taxonomy
+
+```{r add-taxonomy-to-count-table}
+#| message: false
+#| cache: false
+#| include: false
+#| warning: false
+# Read and format ncbi taxonomy table
+ncbi.taxonomy <- read_tsv('summary_tables/magmap.genome_metadata.tsv.gz',
+         show_col_types = FALSE
+         ) %>%
+  select(accno, gtdb_taxonomy) %>%
+  separate(
+    gtdb_taxonomy,
+    into = c("domain", "phylum", "class", "order", "family", "genus", "species"),
+    sep = ";",
+    fill = "right"
+  ) %>%
+  mutate(across(
+    everything(),
+    ~ str_remove(., "^[a-z]__") %>% na_if("") %>% replace_na("unclassified")
+  )) %>%
+  filter(!str_detect(accno, 'metaba*'),
+         !str_detect(accno, 'conco*'))
+
+# get local archaea taxonomy
+arc.taxonomy <- read_tsv('gtdbtk.ar53.summary.tsv', show_col_types = FALSE) %>%
+  select(user_genome, classification) %>%
+  rename( accno = user_genome,
+          gtdb_taxonomy = classification) %>%
+  separate(
+    gtdb_taxonomy,
+    into = c("domain", "phylum", "class", "order", "family", "genus", "species"),
+    sep = ";",
+    fill = "right"
+  ) %>%
+  mutate(across(
+    everything(),
+    ~ str_remove(., "^[a-z]__") %>% na_if("") %>% replace_na("unclassified")
+  )) %>%
+  mutate(accno = str_remove(accno, ".fa"))
+
+# Get local bacteria taxonomy
+bac.taxonomy <- read_tsv('gtdbtk.bac120.summary.tsv', show_col_types = FALSE) %>%
+  select(user_genome, classification) %>%
+  rename( accno = user_genome,
+          gtdb_taxonomy = classification) %>%
+  separate(
+    gtdb_taxonomy,
+    into = c("domain", "phylum", "class", "order", "family", "genus", "species"),
+    sep = ";",
+    fill = "right"
+  ) %>%
+  mutate(across(
+    everything(),
+    ~ str_remove(., "^[a-z]__") %>% na_if("") %>% replace_na("unclassified")
+  )) %>%
+  mutate(accno = str_remove(accno, ".fa"))
+
+# Bind taxonomy together
+taxonomy <- bind_rows(ncbi.taxonomy,arc.taxonomy,bac.taxonomy)
+
+# write taxonomy table
+write_tsv(taxonomy,'summary_tables/taxonomy.tsv.gz')
+```
+
+## Merge counts and taxonomy together
+
+```{r merge-counts-tax }
+#| message: false
+#| cache: false
+#| include: false
+#| warning: false
+
+counts.tax <- counts %>%
+  left_join(taxonomy, join_by(accno),
+            relationship = "many-to-many")
+
+#write_tsv(counts.tax,'counts-taxonomy.tsv.gz')
+```
+
+## Eggnog-mapper functional table
+
+```{r function-table}
+#| message: false
+#| cache: false
+#| include: false
+#| warning: false
+# Add function and remove the previous annotation
+
+# spot which files have different number of columns
+files <- Sys.glob('summary_tables/*/*annotations.gz')
+
+# # Function to count columns in each file
+count_columns <- function(file) {
+  num_cols <- read_tsv(file, comment = "##", show_col_types = FALSE) %>%
+  ncol()
+  tibble(file = file, num_cols = num_cols)
+}
+
+# # Apply the function to each file and collect the results
+file_column_counts <- map_dfr(files, count_columns)
+ 
+# Pull files with 21 columns
+file.with.21.columns <- file_column_counts %>%
+filter( num_cols == 21) %>%
+select(-num_cols) %>%
+pull(file)
+
+ 
+# Pull files with 24 columns
+file.with.24.columns <- file_column_counts %>%
+ filter( num_cols == 24) %>%
+ select(-num_cols) %>%
+ pull(file)
+
+eggnog <-  rbind(
+  file.with.24.columns %>% # load all annotated ORFs
+    read_tsv(id = 'fname', comment = "##", show_col_types = FALSE) %>%
+    rename_with(~ tolower(sub("^#", "", .)))  %>%
+    rename( orf = 'query',
+          max_annot_lvl = 'best_og_name',
+          cog_category = 'best_og_cat',
+          description = 'best_og_desc') %>%
+    mutate( project = 'gtdb') %>%
+    select(-fname, -narr_og_name, -narr_og_cat, -narr_og_desc),
+  file.with.21.columns %>%
+    read_tsv(id = 'fname', comment = "##", show_col_types = FALSE) %>%
+    rename_with(~ tolower(sub("^#", "", .)))  %>%
+    rename( orf = 'query') %>%
+    mutate( project = 'gtdb') %>%
+    select(-fname)) %>%
+  filter(orf %in% orfs)
+
+# write_tsv(eggnog.annotation, "summary_tables/eggnog_annotation.tsv.gz")
+```
+
+```{r leftover-annotation}
+
+# spot which files have different number of columns
+files <- Sys.glob('summary_tables/missing-emapper-annotation/*annotations.gz')
+
+# # Function to count columns in each file
+count_columns <- function(file) {
+  num_cols <- read_tsv(file, comment = "##", show_col_types = FALSE) %>%
+  ncol()
+  tibble(file = file, num_cols = num_cols)
+}
+
+# # Apply the function to each file and collect the results
+file_column_counts <- map_dfr(files, count_columns)
+ 
+# Pull files with 21 columns
+file.with.21.columns <- file_column_counts %>%
+filter( num_cols == 21) %>%
+select(-num_cols) %>%
+pull(file)
+
+ 
+# Pull files with 24 columns
+file.with.24.columns <- file_column_counts %>%
+ filter( num_cols == 24) %>%
+ select(-num_cols) %>%
+ pull(file)
+
+eggnog.annotation <-  file.with.21.columns %>%
+    read_tsv(id = 'fname', comment = "##", show_col_types = FALSE) %>%
+    rename_with(~ tolower(sub("^#", "", .)))  %>%
+    rename( orf = 'query') %>%
+    mutate( project = 'gtdb') %>%
+    select(-fname) %>%
+  filter(orf %in% orfs)
+
+#write_tsv(eggnog.total, "summary_tables/eggnog_annotation_total.tsv.gz")
+```
+
+## KOfamscan functional table
+
+```{r load-kofam-tables}
+files <- Sys.glob('summary_tables/kofamscan/*')
+
+all_data <- files %>%
+  map_dfr(~ read_tsv(.x, show_col_types = FALSE), .id = "fname") %>%
+  filter(sign == '*') %>%
+  rename(orf = 'accno') %>%
+  select(-fname, -thrshld, -score, -evalue)
+
+write_tsv(all_data, 'kofam_annotation_top30genomes.tsv.gz')
+```
+
+## Targeted hmmer profiles table
+
+```{r target-annotation-table }
+#| message: false
+#| cache: false
+#| include: false
+#| warning: false
+# load rhodopsin and other genes from José analysis
+annotation <- read_delim("targeted-genes.csv",delim = ";", col_names = TRUE,
+                    show_col_types = FALSE) %>%
+  select(-'No. peptides') %>%
+  pivot_longer(cols = -genome, names_to = "annotation", values_to = "orf") %>%
+  filter(orf != 0) %>%
+  separate_rows(orf, sep = ",\\s*") %>%
+   mutate(annotation = case_when(
+    str_detect(annotation, "rhodopsin") ~ "rhodopsin",
+    str_detect(annotation, "PEP") ~ "pepcase",
+    str_detect(annotation, "RecA") ~ "reca",
+    str_detect(annotation, "PufM") ~ "pufm",
+    str_detect(annotation, "pyr ca") ~ "pyrcarb",
+    str_detect(annotation, "crotonyl-CoA") ~ "ccr",
+    str_detect(annotation, "isocitrat") ~ "isoly",
+    str_detect(annotation, "TonB") ~ "tonb",
+    TRUE ~ annotation ) ) %>%
+  mutate(genome = genome %>%
+           # First lowercase initial M or C
+           str_replace("^M", "m") %>%
+           str_replace("^C", "c") %>%
+           # Handle GCA/GCF cases - replace only the FIRST underscore after them
+           str_replace("^(GCA|GCF)_(.*?)_", "\\1_\\2.") %>%
+           # Replace any remaining underscores with dots
+           str_replace_all("_", ".") %>%
+           # Special case: if F or A precedes a dot, make it underscore
+           str_replace_all("([FA])\\.", "\\1_"))
+
+# write_tsv(annot, 'summary_tables/targeted_genes.tsv.gz')
+```
+
+## Load metadata
+
+```{r load-metadata}
+#| message: false
+#| cache: false
+#| include: false
+#| warning: false
+# Load meatadata Coast and Offshore
+metadata <- read_excel("data/metatada_summarized.xlsx") %>%
+  select(-bb, -po4, -nh4, -sio2, -tin, -no3, -chla_less_3um, -chla_min_3um, -chla_total, -ab, -no2)
+
+erick.metadata <- read_excel('data/all_Superficial_Metadata_ENVISION.xlsx') %>%
+  select(-cruise, -cruise_station, -Season_Station, -Condition, -day, -station, -Depth, -Bacterial_biomass)
+
+more.metadata <- erick.metadata %>%
+  left_join(metadata, join_by(sample)) %>%
+  rename(temperature = "Temperature", tin = 'TIN',
+         chla_tot = "Chlorophyll_a",
+         no3 = "NO3", po4 = "PO4",
+         pa = "Bacterial_abundance", sio2 = 'SiO2',
+         nh4 = 'NH4', no2 = "NO2",
+         chla_less_3um = 'Chla_0.2', chla_min_3um = 'Chla_3')
+
+write_tsv(more.metadata, './data/envision_metadata.tsv.gz')
+```
+
+## Create complete count table
+
+```{r create-complete-count-table}
+# Read count table
+counts <- read_tsv('counts-taxonomy.tsv.gz', show_col_types = FALSE) %>%
+  mutate(
+    day = case_when(
+      str_detect(sample, "D0") ~ "0",
+      str_detect(sample, "D1") ~ "1",
+      str_detect(sample, "D3") ~ "3",
+      str_detect(sample, "D5") ~ "5",
+      str_detect(sample, "D7") ~ "7",
+      TRUE ~ "Other"                          # Optional: for any other case
+    )
+  )
+
+# Remove mesocosm experiment
+counts <- counts %>%
+  filter( site != 'Mesocosm') %>%
+  filter( domain != 'NA')
+
+
+# create one whole table
+eggnog.total <- bind_rows(eggnog, filtered.eggnog.annotation)
+
+# Join targeted annotation table to counts and taxonomy
+counts <- counts %>% left_join(eggnog.total, join_by(orf))
+
+# Load targeted annotation table
+annotation <- read_tsv('summary_tables/targeted_genes.tsv.gz', show_col_types = FALSE)
+
+# Join targeted annotation table to counts and taxonomy
+counts <- counts %>%
+  left_join(annotation %>%
+              select(
+                -genome), join_by(orf))
+
+# create table with only genomes expressing rhodopsin
+counts.rhodo.genomes <- counts %>%
+ filter(annotation == "rhodopsin") %>%
+ distinct(genome) %>%
+ inner_join(counts, join_by(genome))
+
+# write_tsv(counts.rhodo.genomes, 'summary_tables/counts-rhodo-genomes-taxonomy-function.tsv.gz')
+
+# write_tsv(counts, 'summary_tables/counts-taxonomy-function.tsv.gz')
+```

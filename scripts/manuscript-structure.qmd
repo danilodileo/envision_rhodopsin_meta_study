@@ -1,0 +1,720 @@
+---
+title: "Envision rhodopsin manuscript structure"
+format: pptx
+editor: visual
+---
+
+```{r setup}
+#| label: setup
+#| echo: false
+#| cache: true
+
+knitr::opts_chunk$set(echo = TRUE, fig.path='figures/', cache = TRUE, fig.width = 10)
+ggplot2::theme_set(ggplot2::theme_bw())
+```
+
+```{r libraries}
+#| label: libraries
+#| message: false
+#| cache: false
+#| include: false
+#| warning: false
+
+library(readr)
+library(dplyr, warn.conflicts = FALSE)
+library(tidyr)
+library(lubridate)
+library(purrr)
+library(stringr)
+library(ggplot2)
+library(ggrepel)
+library(kfigr)
+library(knitr)
+library(DT)
+library(grateful)
+library(patchwork)
+library(broom)
+library(gt)
+library(tibble)
+library(corrr)
+library(forcats)
+library(shiny)
+library(grid)
+library(ggvenn)
+library(vegan)
+library(reshape2)
+library(ggsignif)
+library(readxl)
+library(ggcorrplot)
+library(FactoMineR)
+library(factoextra)
+library(missMDA)
+library(kableExtra) # For tables
+library(compositions) # For CLR transformation
+```
+
+```{r read-data, cache.lazy=FALSE}
+#| label: read-data
+#| echo: false
+
+# load stats
+stats <- read_tsv(
+  'data/magmap.overall_stats.tsv.gz',
+  col_types = cols(
+    .default = col_double(), sample = col_character()
+    )
+  ) %>%
+  group_by(sample) %>%
+  mutate(mapping_rate = (idxs_n_mapped*100)/n_non_contaminated,
+         depletion_rate = 100 -((n_non_contaminated*100)/n_trimmed))
+
+# Read count table
+counts <- read_tsv('magmap.output.k31.all.samples/summary_tables/count-tables/magmap.output.full.table.tsv.gz', show_col_types = FALSE)
+
+counts <- counts %>%
+  filter( site != 'Mesocosm') %>%
+  filter( domain != 'NA')
+# Load meatadata Coast and Offshore
+metadata <- read_excel("data/metatada_summarized.xlsx")
+
+# Load metadata Mesocosm
+metadata <- read_excel("data/metadata_summarized_mesocosm.xlsx") %>%
+  mutate(sample = str_remove(sample, "_M[0-3]$") %>% paste0("_M")) %>%
+  group_by(sample, day) %>%
+  summarize(across(everything(), ~ if (is.numeric(.)) mean(., na.rm = TRUE) else first(.)), .groups = "drop") %>%
+  rbind(metadata) %>%
+  left_join( counts %>% dplyr::select(sample, site, season) %>% distinct(sample, .keep_all = TRUE), join_by(sample)) %>%
+  filter( site != 'Mesocosm')
+
+eggnog <- read_tsv('data/eggnog_all.genomes.tsv.gz', show_col_types = FALSE)
+
+# load metadata for genomes taxonomy
+load_and_clean_taxonomy <- function(file, accession_col, taxonomy_col) {
+  read_tsv(file, id = 'fname', show_col_types = FALSE) %>%
+    select(!!sym(accession_col), !!sym(taxonomy_col)) %>%
+    mutate(
+      !!sym(accession_col) := str_replace(!!sym(accession_col), ".*(GCF|GCA)", "\\1"),
+      !!sym(accession_col) := str_replace(!!sym(accession_col), ".fa|_sub", "")
+    ) %>%
+    rename(accession = !!sym(accession_col), gtdb_taxonomy = !!sym(taxonomy_col)) %>%
+    separate(gtdb_taxonomy,
+             into = c("domain", "phylum", "class", "order", "family", "genus", "species"),
+             sep = ";", remove = FALSE) %>%
+    mutate(across(domain:species, ~ str_replace(., "^[d-pcfogs]__", ""))) %>%
+    select(-gtdb_taxonomy)
+}
+
+taxonomy <- bind_rows(
+  Sys.glob('data-not-to-upload/*r214.tsv.gz') %>% 
+    load_and_clean_taxonomy("accession", "gtdb_taxonomy"),
+  Sys.glob('data-not-to-upload/*.summary.tsv.gz') %>%
+    load_and_clean_taxonomy("user_genome", "classification")
+  ) %>%
+  rename(genome = accession)
+
+funtax <- taxonomy %>%
+  right_join(eggnog, join_by(genome))
+```
+
+## Main research questions of the investigation
+
+1.  In a genome centered approach to study photoheterotrophic community, how do the dynamic looks like across different seasons and different study sites?
+2.  ![](images/clipboard-880694235.png)![](images/clipboard-880694235.png)![](images/clipboard-880694235.png)Does environment affect gene expression among genomes-containing-rhodopsin and specific rhodopsin-related genes?
+
+## Structure of the paper
+
+1.  Intoduction
+    1.  Rhodopsin in marine environments
+    2.  Context: study site and oceanographic conditions
+2.  Materials and methods
+    1.  Magmap
+    2.  Describe the tools for functional annotation
+    3.  Statistics
+3.  Results
+    1.  Overall community
+    2.  Rhodopsin specific analysis
+    3.  Genomes/species level analysis
+4.  Discussion
+5.  Conclusions
+
+## Results
+
+1.  Genome-centered context
+    1.  how many genomes/species we found?
+    2.  how many genomes/species we detected that actively transcribe rhodopsin?
+    3.  how the community looks like?
+    4.  how the genomes-containing-rhodopsin community looks like?
+    5.  Do we see remarkable community separation between the whole community and genomes-containing-rhodopsin community? (NMDS)
+2.  Focus on genomes-containing-rhodopsin community
+    1.  Rhodopsin overall dynamics
+    2.  Rhodopsin overall correlation with environmental variables
+    3.  Rhodopsin overall correlation with key genes
+3.  Focus within genomes/species level
+    1.  Rhodopsin dynamcs (heatmap with top50 genomes)
+    2.  Rhodopsin correlation with environmental variables
+    3.  Rhodopsin correlation with key genes
+4.  Discussion
+
+### Study site and oceanographic conditions
+
+![](images/site_study.png){width="621"}
+
+![](https://lh7-rt.googleusercontent.com/docsz/AD_4nXd80Ux8Ds8EuI4rR5bAgFFCs9qAVwx2M9k1BS6DYdKY35O-d81equ9QwxYer453IMPs447YFAHOS0BogofA6sNsMYGq6y-3-7I98sI6TmdPhFjwEi2oSFmgG7vI_xX368HM7b4dfw?key=4YnzH-R_B0Ajvml9tjH90gj9)The paper investigate on behaviour of genomes containg rhodopsin in an upwelling system located in north east Spanish coast of the Atlantic Ocean. Two stations are used in the study.
+
+-   Coast (S3)
+
+-   Offshore (S6)
+
+## Genomes overview
+
+This plot try to answer to the first two questions 1. Genome-centered context 1. how many genomes/species we found? 2. how many genomes/species we detected that actively transcribe rhodopsin?
+
+```{r summary-genome-overview }
+#| label: summary-genome-overview
+#| warning: false
+taxon_summary <- function(df, value_col) {
+  df %>%
+    distinct(genome, .keep_all = TRUE) %>%
+    summarise(
+      genomes = n(),
+      species = n_distinct(species),
+      genus = n_distinct(genus),
+      family = n_distinct(family),
+      order = n_distinct(order),
+      class = n_distinct(class),
+      phylum = n_distinct(phylum),
+      domain = n_distinct(domain)
+    ) %>%
+    pivot_longer(everything(), names_to = "taxon", values_to = value_col)
+}
+
+a <- counts %>% taxon_summary("total")
+b <- funtax %>% filter(pfams == "Bac_rhodopsin") %>% taxon_summary("eggnog")
+c <- counts %>% filter(pfams == "Bac_rhodopsin") %>% taxon_summary("active")
+
+summary_table <- reduce(list(a, b, c), left_join, by = "taxon")
+
+summary_table %>%
+  kable()
+```
+
+## Different types of rhodopsin
+
+### Hard to assess the "right" annotation tool.
+
+we need to take decisions early in the analysis.
+
+| KO ID | Name | Function | Type | Common in |
+|---------------|---------------|---------------|---------------|---------------|
+| K13759 | Bacterial rhodopsin | Light-driven **proton** pump | Pump | Bacteria, Archaea |
+| K04641 | Halorhodopsin | Light-driven **chloride** pump | Pump | Archaea (Halobacteria) |
+| K04643 | Sensory rhodopsin II | Light **sensor** (phototaxis) | Sensor | Archaea |
+
+## Associated metabolisms
+
+| Genome | Genome size (bp) | Rhodopsin genes | Pyruvate carboxylase | PEP carboxylase | Isocitrate lyase | Malate synthase | PEP carboxykinase | Carbonic anhydrase | bicA | sbtA | blh | CrtB |
+|------|------|------|------|------|------|------|------|------|------|------|------|------|
+| Organism 1 | 3,000,000 | Yes | Yes | No | Yes | No | Yes | Yes | Yes | No | Yes | Yes |
+| Organism 2 | 2,500,000 | No | Yes | Yes | No | Yes | No | Yes | No | Yes | No | Yes |
+| Organism 3 | 4,500,000 | Yes | No | Yes | Yes | Yes | Yes | No | Yes | Yes | Yes | No |
+
+## Community transcriptional activity
+
+These plots answer to: 1. Genome-centered context 3. how the community looks like? 4. how the genomes-containing-rhodopsin community looks like?
+
+```{r overall-taxonomy-plot }
+#| label: fig-overall-taxonomy
+#| fig-cap: '**Overall Taxonomy**'
+#| warning: false
+#| fig-width: 10
+
+# sample order
+sample_order <- c(
+  "ENV1_D1_S3", "ENV1_D3_S3", "ENV1_D5_S3", "ENV1_D7_S3",
+  "ENV1_D1_S6", "ENV1_D3_S6", "ENV1_D5_S6", "ENV1_D7_S6",
+  "ENV2_D1_S3", "ENV2_D3_S3", "ENV2_D5_S3", "ENV2_D7_S3",
+  "ENV2_D1_S6", "ENV2_D3_S6", "ENV2_D5_S6", "ENV2_D7_S6",
+  "ENV3_D1_S3", "ENV3_D3_S3", "ENV3_D5_S3", "ENV3_D7_S3",
+  "ENV3_D1_S6", "ENV3_D3_S6", "ENV3_D5_S6", "ENV3_D7_S6"
+)
+
+# Overall taxonomy picture by phylum
+# top 12 taxa
+top.overall.tax <- counts %>%
+  group_by(class) %>%
+  summarise(sum_tpm = sum(tpm), .groups = 'drop') %>%
+  #filter( phylum != 'NA') %>%
+  slice_max(sum_tpm, n = 12)
+
+# set color for class
+class_colors <- c(
+  Poseidoniia = "#1f77b4",
+  Alphaproteobacteria = "#ff7f0e",
+  Gammaproteobacteria = "#2ca02c",
+  Bacteroidia = "#d62728",
+  Cyanobacteriia = "#9467bd",
+  Nitrososphaeria = "#8c564b",
+  Verrucomicrobiae = "#e377c2",
+  Marinisomatia = "#7f7f7f",
+  Planctomycetia = "#bcbd22",
+  Acidimicrobiia = "#17becf",
+  SAR324 = "#aec7e8",
+  UBA796 = "#f7b6d2"
+)
+
+# plot taxonomy
+p2 <- counts %>%
+  inner_join(top.overall.tax, by = 'class') %>%
+  group_by(sample, domain, class, season, site) %>%
+  summarise(sum_tpm = sum(tpm), .groups = 'drop') %>%
+  mutate(sample = factor(sample, levels = sample_order)) %>%
+  ggplot(aes(x = sample, y = sum_tpm, fill = class)) +
+  geom_col(colour = 'black', size = 0.1) +  # Stacked bars with black borders
+  scale_fill_manual(values = class_colors) +
+  labs(
+    title = "Overall taxonomy",
+    x = "Sample",
+    y = "TPM",
+    fill = "class"
+  ) +
+  theme_minimal() +  # Clean, modern theme
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),  # Centered title
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 5),  # Rotate x-axis labels
+    legend.position = "right",  # Move legend to the right for better readability
+    strip.text = element_text(size = 12)  # Increase facet label size
+  )
+
+# Rhodopsin containing genomes taxonomy picture by phylum
+counts.rhodo.genomes <- counts %>%
+ filter(pfams == "Bac_rhodopsin") %>%
+ distinct(genome) %>%
+ inner_join(counts, join_by(genome))
+
+# top 12 taxa
+top.rhodo.genomes.tax <- counts.rhodo.genomes %>%
+  group_by(class) %>%
+  summarise(sum_tpm = sum(tpm), .groups = 'drop') %>%
+  #filter( phylum != 'NA') %>%
+  slice_max(sum_tpm, n = 12)
+
+
+# plot taxonomy
+p3 <- counts.rhodo.genomes %>%
+  inner_join(top.overall.tax, by = 'class') %>%
+  group_by(sample, domain, class, season, site) %>%
+  summarise(sum_tpm = sum(tpm), .groups = 'drop') %>%
+  mutate(sample = factor(sample, levels = sample_order)) %>%
+  ggplot(aes(x = sample, y = sum_tpm, fill = class)) +
+  geom_col(colour = 'black', size = 0.1) +  # Stacked bars with black borders
+  scale_fill_manual(values = class_colors) +
+  labs(
+    title = "Genomes with rhodospins",
+    x = "Sample",
+    y = "TPM",
+    fill = "class"
+  ) +
+  theme_minimal() +  # Clean, modern theme
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),  # Centered title
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 5),  # Rotate x-axis labels
+    legend.position = 'null',
+    strip.text = element_text(size = 12)  # Increase facet label size
+  )
+
+p2 + p3 + plot_layout(guides = 'collect')
+```
+
+## Community structure (NMDS)
+
+These plot answer: 1. Genome-centered context 5. Do we see remarkable community separation between the whole community and genomes-containing-rhodopsin community? (NMDS)
+
+```{r calc-nmds }
+#| label: calc-nmds
+#| include: false
+#| echo: false
+
+# nmds for all genomes
+all.genome.nmds <- counts %>%
+  group_by(sample, genome) %>%
+  summarise(tpm = sum(tpm), .groups = 'drop') %>%
+    pivot_wider(names_from = genome, values_from = tpm, values_fill = 0, values_fn = sum) %>%
+    as.data.frame() %>%
+    tibble::column_to_rownames('sample') %>%
+    vegan::metaMDS(try = 50, trymax = 50)
+
+# nmds for the 369 genomes containing rhodopsin
+genome.nmds <- counts.rhodo.genomes %>%
+  group_by(sample, genome) %>%
+  summarise(tpm = sum(tpm), .groups = 'drop') %>%
+    pivot_wider(names_from = genome, values_from = tpm, values_fill = 0, values_fn = sum) %>%
+    as.data.frame() %>%
+    tibble::column_to_rownames('sample') %>%
+    vegan::metaMDS(try = 50, trymax = 50)
+
+```
+
+```{r fig-nmds}
+#| label: fig-nmds
+#| warning: false
+#| fig-width: 10
+
+p4 <- all.genome.nmds$points %>%
+  as.data.frame() %>%
+  tibble::rownames_to_column('sample') %>%
+  inner_join(counts.rhodo.genomes, by = join_by(sample)) %>%
+  ggplot(aes(x = MDS1, y = MDS2, shape = site, fill = season )) +
+  geom_point( size = 2, alpha = 0.3) +
+  scale_fill_manual(values = c("green", "red", "blue")) +
+  ggforce::geom_mark_ellipse(aes(fill = season), color = NA, alpha = 0.3) +
+  annotate("text", x = min(all.genome.nmds$points[,1]), y = min(all.genome.nmds$points[,2]), 
+           label = paste("Stress =", round(all.genome.nmds$stress, 3)), hjust = 0, size = 5) +
+  geom_text(aes(label = sample), size = 2, check_overlap = TRUE, color = "black", nudge_y = 0.02, nudge_x = 0.02) +  # Add sample names 
+  labs( title = "All genomes") +
+  theme( legend.position = 'null')
+
+p5 <- genome.nmds$points %>%
+  as.data.frame() %>%
+  tibble::rownames_to_column('sample') %>%
+  inner_join(counts.rhodo.genomes, by = join_by(sample)) %>%
+  ggplot(aes(x = MDS1, y = MDS2, shape = site, fill = season )) +
+  geom_point( size = 2, alpha = 0.3) +
+  scale_shape_manual(values = c(21, 22, 23)) +  # Customize shape types if needed
+  scale_fill_manual(values = c("green", "red", "blue")) +
+  ggforce::geom_mark_ellipse(aes(fill = season), color = NA, alpha = 0.3) +
+  annotate("text", x = min(genome.nmds$points[,1]), y = min(genome.nmds$points[,2]), 
+           label = paste("Stress =", round(genome.nmds$stress, 3)), hjust = 0, size = 5) +
+  geom_text(aes(label = sample), size = 2, check_overlap = TRUE, color = "black", nudge_y = 0.02, nudge_x = 0.02) +  # Add sample names 
+  labs( title = "Genomes w prd")
+
+p4 + p5
+```
+
+## Rhodopsin expression
+
+### Seasonality
+
+This plot answer to: 2. Focus on genomes-containing-rhodopsin community 1. Rhodopsin overall dynamics (can be changed or flanked by rhodopsin+taxonomy bar plot)
+
+```{r fig-rhodopsin}
+#| label: fig-genomes-containing-rhodopsin
+#| fig-height: 6
+#| fig-width: 12
+#| warning: false
+
+# Showing trends for genomes containing rhodopsin throughout seasons
+p <- counts.rhodo.genomes %>%
+    group_by(sample, season, site) %>%
+    filter( pfams == 'Bac_rhodopsin') %>%
+  summarise(sum_tpm = sum(tpm), .groups = 'drop') %>%
+  ggplot(aes(x = factor(season, levels = c("Winter", "Spring", "Summer")), y = sum_tpm, fill = factor(site, levels = c("Offshore", "Coast")))) +
+  geom_boxplot(outlier.color = "red", outlier.shape = 1) +
+  labs(
+    title = "Abundance of rhodopsin",
+    x = "Season",
+    y = "Abundance (TPM)"
+  ) +
+  labs(fill = "site") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0, size = 10 )
+  )
+
+
+top.12.tax <- counts.rhodo.genomes %>%
+  filter(pfams == 'Bac_rhodopsin') %>%
+  group_by(family) %>%
+  summarise(sum_tpm = sum(tpm), .groups = 'drop') %>%
+  #filter( phylum != 'NA') %>%
+  slice_max(sum_tpm, n = 12)
+
+rhodo <- counts.rhodo.genomes %>%
+    inner_join(top.12.tax, join_by(family)) %>%
+    group_by(sample, family, season, site) %>%
+    filter( pfams == 'Bac_rhodopsin') %>%
+  summarise(sum_tpm = sum(tpm), .groups = 'drop') %>%
+  mutate(sample = factor(sample, levels = sample_order)) %>%
+  ggplot(aes(x = sample, y = sum_tpm, fill = family)) +
+  geom_col(color = 'black') +
+  labs(
+    title = "Rhodopsin expression at family level",
+    x = "Season",
+    y = "Abundance (TPM)"
+  ) +
+  labs(fill = "Family") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0, size = 10),
+    axis.text.x = element_text(hjust = 1, angle = 45)
+  ) +
+  facet_grid(~site+season, scale = 'free_x')
+
+p + rhodo
+```
+
+## Rhodopsin expression
+
+### Overall Rhodopsin and environmental variables
+
+This plot answer to: 2. Focus on genomes-containing-rhodopsin community 2. Rhodopsin overall correlation with environmental variables
+
+```{r fig-spearman-prd-env-sign-level }
+#| label: fig-spearman-prd-env-sign-level
+#| fig.cap: "**Spearman correlation All environmental variables and rhodopsin:** Spearman correlation matrix between environmental variables and the abundance of rhodopsin genes across different samples. The correlation coefficients are shown in the plot, with no significant associations found between rhodopsin and environmental variables. Statistical significance was tested using pairwise correlation tests, but all correlations were non-significant (p-value > 0.05). In conclusion, no conclusive relationships were detected for rhodopsin in this analysis."
+#| fig-height: 9
+#| fig-width: 9
+#| warning: false
+#| echo: false
+
+
+# I will follow the same approach as before but this time I wll add prd
+# 1. Preapare the dataset by adding prd and removing S6 since I don't have DOC
+gcr.metadata <- counts.rhodo.genomes %>%
+  dplyr::select(sample, tpm) %>%
+  group_by(sample) %>%
+  summarise( sum_tpm = sum(tpm), .groups = 'drop') %>%
+  right_join(metadata, join_by(sample)) %>%
+  select(-day) %>%
+  select(sample, doc, chla_total, ab, tin, po4, sum_tpm, site, season)
+
+# Step 1
+# Select only numeric columns
+numeric_vars <- gcr.metadata %>%
+  dplyr::select(where(is.numeric))
+
+# Ensure that all columns are numeric
+numeric_vars <- as.data.frame(lapply(numeric_vars, as.numeric))
+
+# Compute Spearman correlation matrix
+cor_matrix <- cor(numeric_vars, method = "spearman", use = "pairwise.complete.obs")
+
+# Compute p-value matrix
+p_value_matrix <- matrix(NA, nrow = ncol(numeric_vars), ncol = ncol(numeric_vars))
+rownames(p_value_matrix) <- colnames(numeric_vars)
+colnames(p_value_matrix) <- colnames(numeric_vars)
+
+for(i in 1:(ncol(numeric_vars)-1)) {
+  for(j in (i+1):ncol(numeric_vars)) {
+    test_result <- cor.test(numeric_vars[,i], numeric_vars[,j], method = "spearman")
+    p_value_matrix[i, j] <- test_result$p.value
+    p_value_matrix[j, i] <- test_result$p.value
+  }
+}
+
+# Convert matrices to data frames for ggplot2
+cor_df <- melt(cor_matrix)
+colnames(cor_df) <- c("Var1", "Var2", "Correlation")
+
+p_df <- melt(p_value_matrix)
+colnames(p_df) <- c("Var1", "Var2", "p_value")
+
+# Merge correlation and significance data
+plot_data <- merge(cor_df, p_df, by = c("Var1", "Var2"))
+
+# Define significance markers
+plot_data$Significance <- ifelse(plot_data$p_value < 0.001, "***", 
+                          ifelse(plot_data$p_value < 0.01, "**", 
+                                 ifelse(plot_data$p_value < 0.05, "*", "")))
+
+# Create heatmap with correlation values and significance markers
+corrplot <- ggplot(plot_data, aes(x = Var1, y = Var2, fill = Correlation)) +
+  geom_tile(color = "white") +  # Create heatmap tiles
+  geom_text(aes(label = paste0(round(Correlation, 2), Significance)), size = 4) +  # Add correlation values & significance
+  scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) +  # Color scale
+  theme_minimal() +
+  labs(title = "Spearman Correlation",
+       fill = "Correlation") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+corrplot
+```
+
+```{r fig-pca-prd-env }
+#| label: fig-pca-prd-env
+#| warning: false
+#| echo: false
+#| fig-width: 15
+#| fig-height: 7
+# Run PCA on numeric data
+pca_result <- PCA(numeric_vars, scale.unit = TRUE, graph = FALSE)
+
+# Plot PCA biplot
+# fviz_pca_biplot(pca_result, repel = TRUE)
+
+# PCA Warnings & Interpretation
+# 
+# I got this warning:
+# 
+# "Missing values are imputed by the mean of the variable."
+# What Happened?
+# PCA requires a complete dataset, so R automatically replaced missing values with the mean.
+# This can weaken patterns, making results less reliable.
+# The warning suggests using imputePCA() from the missMDA package, which uses a better method.
+# Store sample names
+rownames(gcr.metadata) <- gcr.metadata$sample
+
+# Select only numeric columns
+numeric_vars <- gcr.metadata %>%
+  dplyr::select(where(is.numeric))
+
+# Convert to numeric, preserving row names
+numeric_vars <- as.data.frame(lapply(numeric_vars, as.numeric), row.names = rownames(gcr.metadata))
+
+numeric_vars_imputed <- imputePCA(numeric_vars)$completeObs
+
+# Plot with samples as color and shape
+pca <- fviz_pca_biplot(pca_result, repel = TRUE, label = "var") + 
+  geom_text(aes(label = rownames(numeric_vars_imputed)), vjust = -1, size = 3) +
+  labs(
+    title = "PCA",
+    subtitle = "Principal Component Analysis on Environmental Variables and PRD Abundance"
+  ) +
+  theme(plot.title = element_text(face = "bold", size = 10))
+
+corrplot + pca
+```
+
+## Rhodopsin expression
+
+### Overall rhodopsin correlation with key genes
+
+This plot will answer to: 3. Rhodopsin overall correlation with key genes (not here yet)
+
+## Species level analysis
+
+### Rhodopsin dynamics at genome/species level
+
+These plot answer to: 3. Focus within genomes/species level 1. Rhodopsin dynamcs (heatmap with top50 genomes)
+
+```{r fig-top50genomes-heatmap }
+#| label: fig-top50genomes-heatmap
+#| fig-cap: '**Heatmap ranked by abundance. A)** Heatmap showing the top 50 genomes from the top 11 families, visualized by their total TPM (Transcripts Per Million) in each sample, highlighting the relative abundance of each genome across sites and seasons. **B)** Heatmap displaying the abundance of rhodopsin transcripts across the same top 50 genomes, emphasizing the expression of rhodopsin across sites and seasons.'
+#| fig-height: 10
+#| fig-width: 16
+
+
+# top 12 taxa
+top.12.family.rhodo <- counts.rhodo.genomes %>%
+  group_by(family) %>%
+  summarise(sum_tpm = sum(tpm), .groups = 'drop') %>%
+  slice_max(sum_tpm, n = 12)
+
+# Pull out family group to work with
+top12 <- top.12.family.rhodo %>% select(family) %>% pull()
+
+# Heatmap top50genomes containing rhodopsin
+top50genomes <- counts.rhodo.genomes %>%
+  filter( family %in% top12 ) %>%
+  group_by(genome) %>%
+  summarise(sum_tpm = sum(tpm)) %>%
+  filter( genome != 'NA') %>%
+  filter( genome != 'GCF_002407085.1') %>%
+  filter( genome != 'GCF_003173795.1') %>%
+  slice_max(sum_tpm, n = 50)
+
+# Even though the group Woeseiaceae is in the top12, when I take the first 50 genomes, 
+# this family is cutoff. It's good to remember in case I want to dig in separately since is the 6th in terms of
+# rhodopsin expression.
+# From the analysis I also removed GCF_002407085.1 and GCF_003173795.1 both alteromonadacea because
+# then don't express rhodopsin.
+
+# Step 1: Precompute factor levels from p8 data
+genome_levels <- counts.rhodo.genomes %>%
+  inner_join(top50genomes, join_by(genome)) %>%
+  group_by(sample, genome, family, site, season, day) %>%
+  summarise(sum_tpm = sum(tpm), .groups = 'drop') %>%
+  mutate(
+    family = as.factor(family),
+    genome_with_family = paste0(genome, " (", family, ")")
+  ) %>%
+  group_by(genome_with_family) %>%
+  summarise(total_tpm = sum(sum_tpm)) %>%
+  arrange(desc(total_tpm)) %>%
+  pull(genome_with_family)
+
+# Step 2: p8 plot with fixed genome levels
+p8 <- counts.rhodo.genomes %>%
+  inner_join(top50genomes, join_by(genome)) %>%
+  group_by(sample, genome, family, site, season, day) %>%
+  summarise(sum_tpm = sum(tpm), .groups = 'drop') %>%
+  mutate(
+    family = as.factor(family),
+    genome_with_family = paste0(genome, " (", family, ")"),
+    genome_with_family = factor(genome_with_family, levels = genome_levels) # Use fixed levels
+  ) %>%
+  ggplot(aes(x = genome_with_family, y = sample, fill = sum_tpm)) +
+  geom_tile(color = "white") +
+  scale_fill_gradient(low = "blue", high = "red", limits = c(0, 10000)) +  # Adjust limits to emphasize differences in a specific range
+  labs(
+    title = "Genomes",
+    x = NULL,
+    y = "Sample"
+  ) +
+  coord_flip() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 7),
+    axis.text.y = element_text(size = 8),
+    legend.position = 'none',
+    strip.text.x = element_text(size = 9)
+  ) +
+  facet_wrap(~factor(site, levels = c("Offshore", "Coast")) +
+           factor(season, levels = c("Winter", "Spring", "Summer")),
+           scales = 'free_x',
+           ncol = 9)
+
+
+# Recalculate tpm base on genomes and samples
+individual.abundance <- counts.rhodo.genomes %>%
+  select(-tpm) %>%
+  group_by(sample, genome) %>%
+  mutate(r = count/length) %>%
+  mutate(tpm = r/sum(r) * 1e6) %>%
+  ungroup() %>%
+  select(-r) %>%
+  as_tibble()
+
+# remake 
+p9 <- individual.abundance %>%
+  inner_join(top50genomes, join_by(genome)) %>%
+  filter( pfams == 'Bac_rhodopsin') %>%
+  group_by(sample, genome, family, site, season, day) %>% 
+  summarise(sum_tpm = sum(tpm), .groups = 'drop') %>%
+  mutate(
+    family = as.factor(family),
+    genome_with_family = paste0(genome, " (", family, ")"), # Combine genome and family info
+    #genome_with_family = fct_reorder(genome_with_family, as.numeric(family))
+    genome_with_family = factor(genome_with_family, levels = genome_levels) # Apply fixed levels
+  ) %>% 
+  ggplot(aes(x = genome_with_family, y = sample, fill = sum_tpm)) +
+  geom_tile(color = "white") +
+  scale_fill_gradient(low = "blue", high = "red", , limits = c(0, 100000)) +
+  labs(
+    title = "Rhodopsin - Recalc",
+    x = NULL,
+    y = "Sample"
+  ) +
+  coord_flip() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 7),
+    axis.text.y = element_blank(),
+    legend.position = 'none',
+    strip.text.x = element_text(size = 9)
+  ) +
+  facet_wrap(~factor(site, levels = c("Offshore", "Coast")) +
+                factor(season, levels = c("Winter", "Spring", "Summer")),
+              scales = 'free_x',
+              ncol = 9)
+
+p8 + p9
+```
+
+## Species level analysis
+
+### Rhodopsin dynamics at genome/species level
+
+These plot answer to: 2. Rhodopsin correlation with environmental variables (not here yet)
+
+## Species level analysis
+
+### Rhodopsin dynamics at genome/species level
+
+These plot answer to: 3. Rhodopsin correlation with key genes (not here yet)

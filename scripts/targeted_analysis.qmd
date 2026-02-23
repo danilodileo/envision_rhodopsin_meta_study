@@ -1,0 +1,1409 @@
+---
+title: "ENVISION - Targeted analysis"
+author: "[Danilo Di Leo](https://github.com/danilodileo)"
+date: today
+format:
+  html:
+    toc: true
+    toc-title: "Table of Contents"
+    toc-depth: 2
+    toc-location: left
+    number-sections: true
+    code-fold: true
+    code-summary: "Show Code"
+    fig-width: 6
+    fig-height: 4
+    highlight-style: github
+    self-contained: true  
+editor: visual
+---
+
+```{r setup}
+#| label: setup
+#| echo: false
+#| cache: true
+
+knitr::opts_chunk$set(echo = TRUE, fig.path='figures/', cache = TRUE, fig.width = 10)
+ggplot2::theme_set(ggplot2::theme_bw())
+
+```
+
+# Data preparation
+
+```{r libraries}
+#| label: libraries
+#| message: false
+#| echo: false
+#| cache: false
+#| include: false
+
+library(readr)
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(purrr)
+library(stringr)
+library(ggplot2)
+library(ggrepel)
+library(kfigr)
+library(knitr)
+library(DT)
+library(grateful)
+library(patchwork)
+library(broom)
+library(gt)
+library(tibble)
+library(corrr)
+library(forcats)
+library(shiny)
+library(grid)
+library(ggvenn)
+library(vegan)
+library(reshape2)
+library(ggsignif)
+library(readxl)
+library(ggcorrplot)
+library(FactoMineR)
+library(factoextra)
+library(missMDA)
+library(kableExtra) # For tables
+library(compositions) # For CLR transformation
+library(pheatmap)
+library(gridExtra)
+library(tidytext)  # per reorder_within() e scale_x_reordered()
+library(shadowtext)
+library(gt)
+library(reactable)
+library(plotly)
+library(circlize)
+library(ggvenn)
+library(reshape2)
+library(pheatmap)
+library(rstatix)
+library(effsize)
+library(forcats)
+library(ggplotify)
+```
+
+```{r palette-and-constants}
+#| echo: false
+
+# Phylum colors
+phylum_colors <- c(
+  Pseudomonadota    = "#0072B2",  # blue
+  Thermoplasmatota  = "#D55E00",  # vermillion
+  Bacteroidota      = "#E69F00",  # orange
+  Marinisomatota    = "#56B4E9",  # sky blue
+  Verrucomicrobiota = "#009E73",  # bluish green
+  Myxococcota       = "#F0E442",  # yellow
+  Actinomycetota    = "#CC79A7",  # reddish purple
+  SAR324            = "#999999",  # gray
+  Chloroflexota     = "#117733",  # dark green
+  Planctomycetota   = "#882255",  # burgundy
+  Nitrospinota      = "#44AA99",  # teal
+  Bacteroidota_A    = "#DDCC77",  # sand
+  Cyanobacteriota   = "#332288",  # indigo
+  Thermoproteota    = "#AA4499",  # violet
+  Asgardarchaeota   = "#661100",  # brown
+  "Other classes"   = "gray80"    # neutral background
+)
+
+# set color for class
+class_colors <- c(
+  Poseidoniia       = "#005AB5",  # deep blue
+  Cyanobacteriia    = "#40B0A6",  # teal
+  Alphaproteobacteria = "#ff7f0e",
+  Gammaproteobacteria = "#2ca02c",
+  Bacteroidia        = "#d62728",
+  Nitrososphaeria    = "#8c564b",
+  Verrucomicrobiia   = "#ffbb78",
+  Marinisomatia      = "#7f7f7f",
+  Planctomycetia     = "#bcbd22",
+  Acidimicrobiia     = "#17becf",
+  SAR324             = "#aec7e8",
+  UBA796             = "#f7b6d2",
+  Dehalococcoidia    = "#e41a1c",  # new color (red)
+  Phycisphaerae      = "#377eb8",  # new color (blue)
+  Actinomycetes      = "#984ea3",  # new color (purple)
+  Lokiarchaeia       = "#ff7f7f",  # new color (pinkish)
+  "Other classes"    = "gray80"
+)
+
+
+family_colors <- c(
+  "Thalassarchaeaceae"    = "#E69F00",  # orange
+  "Pelagibacteraceae"     = "#56B4E9",  # sky blue
+  "Porticoccaceae"        = "#009E73",  # bluish green
+  "Flavobacteriaceae"     = "#F0E442",  # yellow
+  "D2472"                 = "#0072B2",  # blue
+  "Pseudothioglobaceae"   = "#D55E00",  # vermillion
+  "Rhodobacteraceae"      = "#CC79A7",  # reddish purple
+  "Poseidoniaceae"        = "#999999",  # grey
+  "Puniceispirillaceae"   = "#66C2A5",  # teal
+  "SAR86"                 = "#FC8D62",  # coral
+  "Azotimanducaceae"      = "#8DA0CB",  # light purple
+  "Marinisomataceae"      = "#E78AC3",  # pink
+  "Cyanobiaceae"          = "#A6D854",  # light green
+  "Microbacteriaceae"     = "#FFD92F",  # pale yellow
+  "Halieaceae"            = "#B3B3B3",   # light grey
+  "Other family"          = "gray80"
+)
+
+# Family and class palette
+family_class_colors <- c(
+  "Pelagibacteraceae_Alphaproteobacteria"  = "#56B4E9",  # sky blue
+  "Marisalimonadaceae_Alphaproteobacteria" = "#009E73",  # bluish green
+  "Puniceispirillaceae_Alphaproteobacteria"= "#E69F00",  # orange
+  "Rhodobacteraceae_Alphaproteobacteria"   = "#CC79A7",  # reddish purple
+
+  "Porticoccaceae_Gammaproteobacteria"     = "#0072B2",  # blue
+  "Pseudothioglobaceae_Gammaproteobacteria"= "#D55E00",  # vermillion
+  "D2472_Gammaproteobacteria"              = "#F0E442",  # yellow
+  "Azotimanducaceae_Gammaproteobacteria"   = "#999999",  # gray
+  "CABXJW01_Gammaproteobacteria"           = "#66C2A5",  # teal
+
+  "Flavobacteriaceae_Bacteroidia"          = "#8DA0CB",  # lavender blue
+  "Poseidoniaceae_Poseidoniia"             = "#E78AC3",  # pink
+  "Thalassarchaeaceae_Poseidoniia"         = "#A6D854",  # light green
+
+  "other_family_other_class"               = "gray80"    # neutral for “other”
+)
+
+# Colourblind palette
+cb_palette <- c(
+  "#332288", "#88CCEE", "#44AA99", "#117733", "#999933", "#DDCC77",
+  "#CCBB44", "#E69F00", "#CC6677", "#882255", "#AA4499", "#BBBBBB"
+)
+
+
+# Annotation
+annotation_colors <- c(
+  "NA" = "#D3D3D3",
+  "rhodopsin" = "#E66100",
+  "reca" = "#1E90FF",
+  "pepcase" = "gray",
+  "isoly" = "#FFD700",
+  "tonb" = "#7B3294",
+  "ccR" = "#1B9E77",
+  "pyrC" = "#D73027",
+  "pufM" = "#01665E",
+  "glcB" = "#01665E"
+)
+
+# Set COG categories long names
+# cog_mapping <- c(
+#    'A' = 'RNA_process',
+#    'B' = 'Chromatin_Struc',
+#    'C' = 'Energy_prod',
+#    'D' = 'Cell_cycle',
+#    'E' = 'AA_metab',
+#    'F' = 'Nucl_metab',
+#    'G' = 'Carbohy_metab',
+#    'H' = 'Coenz_metab',
+#    'I' = 'Lipid_metab',
+#    'J' = 'Tranlsation',
+#    'K' = 'Transcription',
+#    'L' = 'Replication',
+#    'M' = 'Cell_wall',
+#    'N' = 'Cell_motility',
+#    'O' = 'Post-transl_mod',
+#    'P' = 'Inorg_ion_transp',
+#    'Q' = 'Sec_Structure',
+#   'T' = 'Signal_Transduc',
+#   'U' = 'Intracel_traf',
+#   'Y' = 'Nucl_structure',
+#   'Z' = 'Cytoskeleton',
+#   'R' = 'Gen_Func',
+#   'S' = 'Func_unknown',
+#   '-' = 'Func_unknown'
+#  )
+
+# sample order
+sample_order <- c(
+  "ENV1_D1_S3", "ENV1_D3_S3", "ENV1_D5_S3", "ENV1_D7_S3",
+  "ENV1_D1_S6", "ENV1_D3_S6", "ENV1_D5_S6", "ENV1_D7_S6",
+  "ENV2_D1_S3", "ENV2_D3_S3", "ENV2_D5_S3", "ENV2_D7_S3",
+  "ENV2_D1_S6", "ENV2_D3_S6", "ENV2_D5_S6", "ENV2_D7_S6",
+  "ENV3_D1_S3", "ENV3_D3_S3", "ENV3_D5_S3", "ENV3_D7_S3",
+  "ENV3_D1_S6", "ENV3_D3_S6", "ENV3_D5_S6", "ENV3_D7_S6"
+)
+
+```
+
+```{r read-data, cache.lazy=FALSE}
+#| label: read-data
+#| echo: false
+
+# load stats
+stats <- read_tsv(
+  'summary_tables/magmap.overall_stats.tsv.gz',
+  col_types = cols(
+    .default = col_double(), sample = col_character()
+    )
+  ) %>%
+  group_by(sample) %>%
+  mutate(mapping_rate = (idxs_n_mapped*100)/n_non_contaminated,
+         euk_fraction = n_non_contaminated*0.3,
+         normalized_mapping_rate = (idxs_n_mapped*100)/(n_non_contaminated-euk_fraction),
+         depletion_rate = 100 -((n_non_contaminated*100)/n_post_trimming))
+
+# Read count table
+counts <- read_tsv('./summary_tables/counts-taxonomy.tsv.gz', show_col_types = FALSE) %>%
+  mutate(
+    day = case_when(
+      str_detect(sample, "D0") ~ "0",
+      str_detect(sample, "D1") ~ "1",
+      str_detect(sample, "D3") ~ "3",
+      str_detect(sample, "D5") ~ "5",
+      str_detect(sample, "D7") ~ "7",
+      TRUE ~ "Other"                          # Optional: for any other case
+    )
+  )
+
+# Remove mesocosm experiment
+counts <- counts %>%
+  filter( site != 'Mesocosm') %>%
+  filter( domain != 'NA')
+
+
+# Load meatadata Coast and Offshore
+metadata <- read_tsv("data/envision_metadata.tsv.gz",
+                     show_col_types = FALSE)
+
+# Create daylight variable
+daylight <- data.frame(season = c("Winter", "Spring", "Summer"),
+                       daylight = c(10, 12, 14))
+
+# join metadata with sample information ( site and season)
+metadata <- metadata %>%
+  left_join( counts %>% dplyr::select(sample, site, season) %>% distinct(sample, .keep_all = TRUE), join_by(sample)) %>%
+  filter( site != 'Mesocosm')  %>%
+  left_join(daylight, join_by(season))
+
+# Load targeted annotation table
+annotation <- read_tsv('summary_tables/targeted_genes.tsv.gz', show_col_types = FALSE)
+
+# Load taxonomy table
+taxonomy <- read_tsv('summary_tables/taxonomy.tsv.gz', show_col_types = FALSE)
+
+# Functional annotation
+#eggnog <- read_tsv('data/eggnog_all.genomes.tsv.gz', show_col_types = FALSE)
+
+# Join targeted annotation table to counts and taxonomy
+counts <- counts %>%
+  left_join(annotation %>%
+              select(
+                -genome), join_by(orf))
+
+# Join only taxonomy and function / no count table
+funtax <- taxonomy %>%
+  rename(genome = accno) %>%
+  inner_join(annotation, join_by(genome))
+
+# Rhodopsin containing genomes
+counts.rhodo.genomes <- counts %>%
+ filter(annotation == "rhodopsin") %>%
+ distinct(genome) %>%
+ inner_join(counts, join_by(genome))
+
+# Individual abundance of rhodopsin-containig genomes
+individual.abundance <- counts.rhodo.genomes %>%
+  select(-tpm) %>%
+  group_by(sample, genome) %>%
+  mutate(r = count / length, perc = r / sum(r) * 100) %>%
+  ungroup()
+
+# Family abundance of rhodopsin-containig genomes
+family.abundance <- counts.rhodo.genomes %>%
+  select(-tpm) %>%
+  group_by(sample, family) %>%
+  mutate(r = count / length, tpm = r / sum(r) * 1e6) %>%
+  ungroup()
+```
+
+# Targeted analysis
+
+## Rhodopsin overall correlation with key genes
+
+1.  **tonB**
+
+-   **Function:** Encodes a protein that provides energy for active transport of substrates (especially iron-siderophore complexes) across the outer membrane in Gram-negative bacteria.
+
+-   **Role:** Essential for nutrient uptake in low-nutrient environments.
+
+2.  **isoly** *(Isocitrate Lyase, ICly / glyoxylate cycle)*
+
+-   **Function:** Catalyzes the cleavage of isocitrate into glyoxylate and succinate in the glyoxylate cycle.
+
+-   **Role:** Allows organisms to grow on C2 compounds (like acetate) by bypassing CO₂-producing steps of the TCA cycle.
+
+3.  **crot** *(Carnitine O-acetyltransferase / crotonase family)*
+
+-   **Function:** Involved in fatty acid metabolism; catalyzes conversion of acyl-CoA derivatives in β-oxidation or carnitine metabolism.
+
+-   **Role:** Important for energy production from lipids.
+
+4.  **pyrcarb** *(Pyruvate carboxylase)*
+
+-   **Function:** Catalyzes carboxylation of pyruvate to oxaloacetate.
+
+-   **Role:** Anaplerotic reaction to replenish TCA cycle intermediates; links glycolysis and gluconeogenesis.
+
+5.  **pepcase** *(Phosphoenolpyruvate carboxykinase / PEP carboxykinase)*
+
+-   **Function:** Converts oxaloacetate to phosphoenolpyruvate (PEP) in gluconeogenesis.
+
+-   **Role:** Critical for producing glucose from non-carbohydrate sources; connects TCA cycle and gluconeogenesis.
+
+## Preliminary questions
+
+**How much rhodopsin in TPM in the dataset?**
+
+Total TPM expression of rhodopsin from the whole community and all samples is 93796.47 tpm.
+
+**How many family are actively expressing rhodopsin in the dataset?**
+
+102 families.
+
+**How much the top families expressing rhodopsin account for the total rhodopsin expression?**
+
+-   the top 20 families account for 93% of total rhodopsin expression.
+
+-   the top 12 families account for 89% of total rhodopsin expression.
+
+I can continue to work on top 12 families. But some of the statistics I will do it on all.
+
+**How many families actively express both rhodopsin AND any anaplerotic enzyme?**
+
+-   27 families have both rhodopsin and isoly. (9 unique\*)
+
+-   30 families have both rhodopsin and pepcase. (12 unique\*)
+
+-   7 families have both rhodopsin and pyrcarb. (4 unique\*)
+
+-   4 families have both rhodopsin and ccr. (3 unique\*)
+
+For a total of 47 unique families having at least one combination of anaplerotic enzyme and rhodopsin expression.
+
+*\*they are not sharing family with the other groups*
+
+**How much of the active expression of rhodopsin do this families account for?**
+
+The 47 families account for 85% of total rhodopsin active expression.
+
+**Are the top 12 families included in this group?**
+
+9 out of 12 family are present in this group. So it is widespread among important taxa for rhodopsin expression.
+
+Only these three families Marisalimonadaceae, CABXJW01 and Poseidoniaceae don't actively express any of anaplerotic enzymes.
+
+**How many genomes actively express both rhodopsin AND at least one anaplerotic enzyme?**
+
+390 genomes express at least one anaplerotic enzyme and rhodopsin.
+
+-   154 genomes (39.5%) actively express both isoly and rhodopsin.
+
+-   144 genomes (36.9%) actively express both pepcase and rhodopsin.
+
+-   51 genomes (13.1%) actively express pepcase, isoly and rhodopsin.
+
+-   23 genomes (5.9%) actively express both pyrcarb and rhodopsin.
+
+-   13 genomes (3.3%) actively express both ccr and rhodopsin.
+
+-   2 genomes (0.5%) actively express pyrcarb, ccr and rhodopsin.
+
+-   2 genomes (0.5%) actively express pepcase, pyrcarb, isoly and rhodopsin.
+
+-   1 genome (0.3%) actively express pyrcarb, isoly and rhodopsin.
+
+**How much these genomes they account for total rhodopsin expression?**
+
+These 390 genomes account for 36% of total rhodopsin expression in the dataset.
+
+**How much of total rhodopsin expression account those genomes from those 9 top families?**
+
+Out of 390 genomes, 272 genomes belong to at least one of the top family and they account for 30% of total rhodopsin expression.
+
+**Which family has the biggest contribution to rhodopsin expression?**
+
+Pelagibacteraceae is the family with the highest contribution in rhodopsin expression for genomes having at least rhodopsin and one anaplerotic enzyme actively express with 17% of total rhodopsin expression. For comparison, the second family Rhodobacteraceae contribute with 2,7% of total rhodopsin expression.
+
+**How much Pelagibacteraceae contribute to total rhodopsin expression?**
+
+Pelagibacteraceae alone they account for 29% of total rhodopsin expression. So more than half of the rhodopsin expression from Pelagibacteraceae is coming from genomes that have at least one active anaplerotic gene. Which also means that there is a 12% that actively express rhodopsin but it doen't express anaplerotic genes.
+
+**Which family count more genomes?**
+
+-   Pelagibacteraceeae has 142 genomes (36%\*)
+
+-   Flavobacteriaceae has 59 genomes (15%\*)
+
+-   D2472 has 27 genomes (7%\*)
+
+-   Porticoccaceae has 16 genomes (4%\*)
+
+-   Actinomarinaceae has 11 genomes (\~3%\*)
+
+-   Azotimanducaceae has 10 genomes (\~3%\*)
+
+-   Rhodobacteraceae has 10 genomes (\~3%\*)
+
+-   SAR86 has 10 genomes (\~3%\*)
+
+*\*of total genomes expressing at least rhodopsin and one anaplerotic enzyme*
+
+Among the other 9 top families not present in the top 8 of families with most genomes actively expressing rhodopsin and at least one anaplerotic enzyme:
+
+-   Pseudothioglobaceae with 4 genomes;
+
+-   Puniceispirillaceae with 3 genomes;
+
+-   Thalassarcheaceae with 1 genome;
+
+```{r general-metrics-on-anapl-enzymes}
+#| echo: false
+#| fig-width: 15
+#| fig-height: 10
+
+# Extract the top 12 taxa expressing rhodopsin
+top.12.rhodo.taxa <- counts.rhodo.genomes %>%
+  filter(annotation == 'rhodopsin') %>%
+  group_by(family) %>%
+  summarise(sum_tpm = sum(tpm)) %>%
+  group_by(family) %>%
+  summarise(perc = (sum_tpm/93796.47)*100) %>%
+  slice_max(perc, n = 12) %>%
+  pull(family)
+
+# Find family that has both rhodopsin and any anaplerotic gene actively expressed
+find_family_with <- function(df, genes) {
+  stopifnot(length(genes) == 2)
+
+  df %>%
+    filter(annotation %in% genes) %>%
+    group_by(family, genome) %>%
+    summarise(has_gene1 = any(annotation == genes[1]),
+              has_gene2 = any(annotation == genes[2]), .groups = "drop") %>%
+    filter(has_gene1 & has_gene2) %>%
+    distinct(family)
+}
+
+# store the results in variable
+isoly <- find_family_with(counts.rhodo.genomes, c("rhodopsin", "isoly"))
+pepcase <- find_family_with(counts.rhodo.genomes, c("rhodopsin", "pepcase"))
+pyrcarb <- find_family_with(counts.rhodo.genomes, c("rhodopsin", "pyrcarb"))
+ccr <- find_family_with(counts.rhodo.genomes, c("rhodopsin", "ccr"))
+
+
+# Find genomes that has both rhodopsin and any anaplerotic gene actively expressed
+find_genomes_with <- function(df, genes) {
+  stopifnot(length(genes) == 2)
+
+  df %>%
+    filter(annotation %in% genes) %>%
+    group_by(family, genome) %>%
+    summarise(has_gene1 = any(annotation == genes[1]),
+              has_gene2 = any(annotation == genes[2]), .groups = "drop") %>%
+    filter(has_gene1 & has_gene2) %>%
+    distinct(genome)
+}
+
+# store the results in variable
+g.isoly <- find_genomes_with(counts.rhodo.genomes, c("rhodopsin", "isoly"))
+g.pepcase <- find_genomes_with(counts.rhodo.genomes, c("rhodopsin", "pepcase"))
+g.pyrcarb <- find_genomes_with(counts.rhodo.genomes, c("rhodopsin", "pyrcarb"))
+g.ccr <- find_genomes_with(counts.rhodo.genomes, c("rhodopsin", "ccr"))
+```
+
+#### **Summarise the results in a table**
+
+**Dataset-level-overview**
+
+| Metric | Value |
+|------------------------------------|------------------------------------|
+| Total rhodopsin TPM | 93796.47 TPM (from all samples) |
+| Families expressing rhodopsin | 102 |
+| Genomes expressing rhodopsin | 1324 |
+| Top 12 families coverage | 89% total rhodopsin TPM |
+| Families expressing rhodopsin + any anaplerotic enzyme | 47 |
+| Fraction of rhodopsin TPM by those 47 | 85% |
+| Genomes expressing rhodopsin + any anaplerotic enzyme | 390 |
+| Fraction of total rhodopsin TPM by those genomes | 36% |
+| Genomes from top families (subset) | 272 (30% of total rhodopsin TPM) |
+
+**Family-level-summary (top 12 family)**
+
+| Family | Rhodopsin+Anaplerotic | TPM % | n_genomes | Present in top12? |
+|---------------|---------------|---------------|---------------|---------------|
+| Pelagibacteraceae | Yes | **17.0%** | 142 | ✅ |
+| Rhodobacteraceae | Yes | 2.7% | 10 | ✅ |
+| Flavobacteriaceae | Yes | — | 59 | ✅ |
+| D2472 | Yes | — | 27 | ✅ |
+| Porticoccaceae | Yes | — | 16 | ✅ |
+| Actinomarinaceae | Yes | — | 11 | ✅ |
+| Azotimanducaceae | Yes | — | 10 | ✅ |
+| SAR86 | Yes | — | 10 | ✅ |
+| Pseudothioglobaceae | Yes | — | 4 | ✅ |
+| Puniceispirillaceae | Yes | — | 3 | ✅ |
+| Marisalimonadaceae | No | — | — | ❌ |
+| CABXJW01 | No | — | — | ❌ |
+| Poseidoniaceae | No | — | — | ❌ |
+
+**Visualize the tables**
+
+```{r stacked-bar-summary-anapl }
+#| echo: false
+#| fig-width: 15
+#| fig-height: 10
+# Define groups
+anaplerotic_genes <- c("isoly", "pepcase", "pyrcarb", "ccr")
+rhodopsin_gene <- "rhodopsin"
+
+# 1. Global totals -------------------------------------------------------
+rhodopsin_summary <- counts.rhodo.genomes %>%
+  filter(annotation == rhodopsin_gene) %>%
+  summarise(
+    total_rhodopsin_tpm = sum(tpm, na.rm = TRUE),
+    n_families = n_distinct(family)
+  )
+
+# 2. Family-level rhodopsin TPM -----------------------------------------
+family_rhodo <- counts.rhodo.genomes %>%
+  filter(annotation == rhodopsin_gene) %>%
+  group_by(family) %>%
+  summarise(rhodopsin_tpm = sum(tpm, na.rm = TRUE), .groups = "drop") %>%
+  mutate(perc_total = rhodopsin_tpm / sum(rhodopsin_tpm) * 100) %>%
+  arrange(desc(perc_total)) %>%
+  mutate(rank = row_number())
+
+# Identify top families
+top12 <- family_rhodo %>% slice_max(perc_total, n = 12) %>% pull(family)
+
+# 3. Families expressing rhodopsin + anaplerotic enzyme ------------------
+family_combo <- counts.rhodo.genomes %>%
+  filter(annotation %in% c(rhodopsin_gene, anaplerotic_genes)) %>%
+  group_by(family) %>%
+  summarise(
+    has_rhodopsin = any(annotation == rhodopsin_gene),
+    has_anaplerotic = any(annotation %in% anaplerotic_genes),
+    .groups = "drop"
+  ) %>%
+  mutate(has_both = has_rhodopsin & has_anaplerotic)
+
+n_both <- sum(family_combo$has_both)
+
+# 4. TPM of families expressing both ------------------------------------
+tpm_both <- family_rhodo %>%
+  inner_join(family_combo %>% filter(has_both), by = "family") %>%
+  summarise(perc_rhodo_both = sum(perc_total))
+
+# 5. Genomes expressing both --------------------------------------------
+genome_combo <- counts.rhodo.genomes %>%
+  filter(annotation %in% c(rhodopsin_gene, anaplerotic_genes)) %>%
+  group_by(genome, family) %>%
+  summarise(
+    has_rhodopsin = any(annotation == rhodopsin_gene),
+    has_anaplerotic = any(annotation %in% anaplerotic_genes),
+    .groups = "drop"
+  ) %>%
+  mutate(has_both = has_rhodopsin & has_anaplerotic)
+
+n_genomes_both <- sum(genome_combo$has_both)
+total_genomes <- n_distinct(counts.rhodo.genomes$genome)
+
+# 6. Genome count per family --------------------------------------------
+genome_count <- genome_combo %>%
+  filter(has_both) %>%
+  count(family, name = "n_genomes_both")
+
+# 7. Combine everything for plotting ------------------------------------
+plot_data <- family_rhodo %>%
+  left_join(family_combo, by = "family") %>%
+  left_join(genome_count, by = "family") %>%
+  mutate(
+    status = case_when(
+      family %in% top12 & has_both ~ "Top12 + Anaplerotic",
+      family %in% top12 & !has_both ~ "Top12 only",
+      !family %in% top12 & has_both ~ "Anaplerotic only",
+      TRUE ~ "Other"
+    ),
+    n_genomes_both = replace_na(n_genomes_both, 0)
+  )
+
+# 8. Plot ---------------------------------------------------------------
+fig_rhodo <- ggplot(plot_data %>%
+                      filter(perc_total > 0.5), aes(
+  x = fct_reorder(family, perc_total),
+  y = perc_total,
+  fill = status
+)) +
+  geom_col(color = "black", width = 0.8) +
+  geom_text(aes(label = round(perc_total, 1)), hjust = -0.1, size = 2.8) +
+  coord_flip() +
+  labs(
+    x = "Family",
+    y = "% of total rhodopsin TPM",
+    fill = "Group",
+    title = "Contribution of families to total rhodopsin expression"
+  ) +
+  theme_minimal(base_size = 11) +
+  theme(
+    legend.position = "bottom",
+    panel.grid.major.y = element_blank()
+  )
+
+# 9. Compact summary tables ---------------------------------------------
+
+summary_table1 <- tibble(
+  Metric = c(
+    "Total rhodopsin TPM",
+    "Families expressing rhodopsin",
+    "Families expressing both rhodopsin + anaplerotic",
+    "% of rhodopsin TPM by those families",
+    "Genomes expressing both rhodopsin + anaplerotic",
+    "% of total genomes",
+    "% of total rhodopsin TPM by those genomes"
+  ),
+  Value = c(
+    round(rhodopsin_summary$total_rhodopsin_tpm, 2),
+    rhodopsin_summary$n_families,
+    n_both,
+    paste0(round(tpm_both$perc_rhodo_both, 1), "%"),
+    n_genomes_both,
+    paste0(round(n_genomes_both / total_genomes * 100, 1), "%"),
+    "36%" # replace with real if known
+  )
+)
+
+summary_table2 <- plot_data %>%
+  filter(family %in% top12) %>%
+  select(Family = family,
+         `Has anaplerotic?` = has_anaplerotic,
+         `Rhodopsin TPM %` = perc_total,
+         `n genomes both` = n_genomes_both) %>%
+  arrange(desc(`Rhodopsin TPM %`))
+
+# 10. Number of genomes per family
+fig_rhodo_genomes <- ggplot(plot_data %>%
+                              filter(perc_total > 0.5),  # same families as main plot
+                            aes(
+                              x = fct_reorder(family, perc_total),
+                              y = n_genomes_both
+                            )) +
+  geom_col(fill = "steelblue", color = "black", width = 0.8) +
+  geom_text(aes(label = n_genomes_both), hjust = -0.1, size = 2.8) +
+  coord_flip() +
+  labs(
+    x = "Family",
+    y = "Genomes expressing anaplerotic and rhodopsin",
+    title = "Number of genomes per family"
+  ) +
+  theme_minimal(base_size = 11) +
+  theme(
+    axis.title.y = element_blank(),
+    panel.grid.major.y = element_blank()
+  )
+
+fig_rhodo + fig_rhodo_genomes
+```
+
+**Figure 1. Stackedbar plot based on genomes expressing rhodopsin and anaplerotic enzymes.** A. Contribution of total rhodopsin expression at family level for genome expressing at least one anaplerotic enzyme. Red: family not being part of the top 12 family group but expressing anaplerotic genes; Green: top 12 family expressing rhodopsin that also express anaplerotic genes; Blue: top 12 family expressing only rhodopsin.
+
+```{r venn-diagram-family-anapl-prd}
+#| echo: false
+#| fig-width: 15
+#| fig-height: 10
+# Create a list for Venn diagram
+sets <- list(
+  isoly = isoly %>% pull(family),
+  pepcase = pepcase %>% pull(family),
+  pyrcarb = pyrcarb %>% pull(family),
+  ccr = ccr %>% pull(family)
+)
+
+# Plot
+ggvenn(sets) + plot_annotation(title = "Venn diagram of family actively expressing anaplerotic genes and rhodopsin")
+```
+
+**Supplementary figure 1. Venn diagram of shared anaplerotic genes at family level.** Isoly: Isocitrate-lyase; ccr: crotonyl-CoA; pyrcarb: pyruvate carboxylase; pepcase: phosphoenol piruvate kinase.
+
+```{r venn-diagram-genomes-anapl-prd}
+#| echo: false
+#| fig-width: 15
+#| fig-height: 10
+# Create a list for Venn diagram
+sets <- list(
+  isoly = g.isoly %>% pull(genome),
+  pepcase = g.pepcase %>% pull(genome),
+  pyrcarb = g.pyrcarb %>% pull(genome),
+  ccr = g.ccr %>% pull(genome)
+)
+
+# Plot
+ggvenn(sets) + plot_annotation(title = "Venn diagram of genomes actively expressing anaplerotic genes and rhodopsin")
+```
+
+**Supplementary figure 2. Venn diagram of shared anaplerotic genes at genome level.** Isoly: Isocitrate-lyase; ccr: crotonyl-CoA; pyrcarb: pyruvate carboxylase; pepcase: phosphoenol piruvate kinase.
+
+```{r summary-table-1 }
+summary_table1 %>%
+  kable()
+```
+
+**Supplementary table 1.** Summary table for taxa expressing both anaplerotic enzymes and rhodopsin.
+
+```{r summary-table-2}
+summary_table2 %>%
+  kable()
+```
+
+**Supplementary table 1.** Summary table for the top 12 family expressing rhodopsin and the number of genomes expressing at least one anaplerotic enzymes.
+
+### Spearman correlation
+
+Pelagibacteraceae family show the highest number of genomes with anaplerotic genes but in the main correlation we don't see pattern. My guess is that the family is too big, so I want to redo the analysis but only with those genomes in family that have at least one anaplerotic gene.
+
+```{r spearman-correlation-prd-targeted-genes }
+#| warning: false
+#| fig-width: 15
+#| fig-height: 8
+#| echo: false 
+
+# Rhodopsin containing genomes
+rhodo_genomes <- counts.rhodo.genomes %>%
+  filter(annotation == "rhodopsin") %>%
+  group_by(genome, sample) %>%
+  summarise(sum_count = sum(count), .groups = "drop") %>%
+  filter(sum_count > 4) %>%
+  group_by(genome) %>%
+  summarise(n_sample = n_distinct(sample), .groups = "drop") %>%
+  filter(n_sample > 2) %>%
+  pull(genome)
+
+counts.rhodo.genomes <- counts.rhodo.genomes %>%
+  filter(genome %in% rhodo_genomes)
+# Target those family among the top 12 that have at least one target gene.
+targ.fam <- c("D2472", "Pseudothioglobaceae", "Porticoccaceae", "Pelagibacteraceae",
+              "Rhodobacteraceae", "Flavobacteriaceae", "Marisalimonadaceae",
+              "CABXJW01", "Azotimanducaceae",
+              "Puniceispirillaceae", "Poseidoniaceae", "Thalassarchaeaceae")
+
+results_list <- list()
+
+# Function to calculate correlation
+for (fam in targ.fam) {
+  tmp <- family.abundance %>%
+    filter(family == fam, !is.na(annotation), !annotation %in% c('reca', 'pufm')) %>%
+    select(sample, site, season, annotation, tpm) %>%
+    group_by(sample, annotation) %>%
+    summarise(sum_tpm = sum(tpm), .groups = "drop") %>%
+    pivot_wider(names_from = annotation, values_from = sum_tpm, values_fill = 0)
+  
+  numeric_vars <- tmp %>% select(where(is.numeric))
+  
+  if ("rhodopsin" %in% colnames(numeric_vars)) {
+    cor_values <- sapply(colnames(numeric_vars), function(g) {
+      if (g == "rhodopsin") return(NA)
+      cor.test(numeric_vars[[g]], numeric_vars$rhodopsin,
+               method = "spearman")$estimate
+    })
+    p_values <- sapply(colnames(numeric_vars), function(g) {
+      if (g == "rhodopsin") return(NA)
+      cor.test(numeric_vars[[g]], numeric_vars$rhodopsin,
+               method = "spearman")$p.value
+    })
+    
+    results_list[[fam]] <- data.frame(
+      fam = fam,
+      gene = names(cor_values),
+      Correlation = cor_values,
+      p_value = p_values
+    )
+  }
+}
+
+
+# Calculate padj
+plot_data <- bind_rows(results_list) %>%
+  group_by(fam) %>%
+  mutate(
+    p_adj = p.adjust(p_value, method = "BH"),
+    Significance = case_when(
+      p_adj < 0.001 ~ "***",
+      p_adj < 0.01  ~ "**",
+      p_adj < 0.05  ~ "*",
+      TRUE ~ ""
+    )
+  ) %>%
+  ungroup()
+
+# Build matrix based on correlations
+cor_mat <- plot_data %>%
+  select(-Significance, -p_value, -p_adj) %>%
+  pivot_wider(names_from = fam, values_from = Correlation, values_fill = 0) %>%
+  column_to_rownames("gene") %>%
+  as.matrix()
+
+# Build significance matrix for pheatmap
+signif_mat <- plot_data %>%
+  select(-Correlation, -p_value, -p_adj) %>%
+  pivot_wider(names_from = fam, values_from = Significance, values_fill = "") %>%
+  column_to_rownames("gene") %>%
+  as.matrix()
+
+# Remove any NAs or InF
+cor_mat_clean <- cor_mat %>%
+  as.data.frame() %>%
+  filter(complete.cases(.)) %>%        # elimina righe con NA
+  as.matrix()
+
+# Substitution the remaining with zeros
+cor_mat_clean[!is.finite(cor_mat_clean)] <- 0
+
+# Build matrix for significance
+signif_mat <- signif_mat[rownames(cor_mat_clean), , drop = FALSE]
+
+# Plot pheatmap
+pal <- colorRampPalette(c("blue", "white", "red"))(100)
+lim <- max(abs(1), na.rm = TRUE)
+breaks <- seq(-lim, lim, length.out = 101)
+
+fig5a <- pheatmap(
+  cor_mat_clean,
+  cluster_rows = TRUE,
+  cluster_cols = TRUE,
+  display_numbers = signif_mat,
+  number_color = "black",
+  color = pal,
+  breaks = breaks,
+  fontsize_row = 10,
+  border = TRUE,
+  treeheight_row = 1,
+  treeheight_col = 1,
+  fontsize_col = 10,
+  main = "Correlation prd and selected marker genes"
+)
+```
+
+**Figure 1. Spearman correlation analysis of key genes at family level.** This analysis shows that among the top 12 family, 7 have some correlation with either an anaplerotic enzyme or TonB transporter. From this point, further analysis are needed.
+
+### Anaplerotyc pathways and family correlation
+
+```{r isoly-prd-genome-level}
+# Build wide table: genome × sample × genes
+all_data <- individual.abundance %>%
+  filter(!is.na(annotation)) %>%
+  group_by(genome, sample, annotation) %>%
+  summarise(tpm_sum = sum(perc), .groups = "drop") %>%
+  pivot_wider(names_from = annotation,
+              values_from = tpm_sum,
+              values_fill = 0)
+
+genomes <- unique(all_data$genome)
+
+cor_results <- data.frame(
+  genome = character(),
+  n_copres = integer(),
+  correlation = numeric(),
+  p_value = numeric(),
+  stringsAsFactors = FALSE
+)
+
+min_samples <- 10   # threshold
+
+for (g in genomes) {
+
+  tmp <- all_data %>% filter(genome == g)
+
+  # skip genomes missing one gene entirely
+  if (!("rhodopsin" %in% colnames(tmp)) |
+      !("isoly" %in% colnames(tmp))) {
+    next
+  }
+
+  rhodo_vals <- tmp$rhodopsin
+  isoly_vals <- tmp$isoly
+
+  # co-presence criterion: both genes > 0 in a sample
+  copres <- (rhodo_vals > 0 & isoly_vals > 0)
+  n_copres <- sum(copres)
+
+  # skip genomes without enough co-presence samples
+  if (n_copres < min_samples) {
+    next
+  }
+
+  # use only co-presence samples for correlation
+  rhodo_sub <- rhodo_vals[copres]
+  isoly_sub <- isoly_vals[copres]
+
+  # require variance > 0
+  if (sd(rhodo_sub) > 0 & sd(isoly_sub) > 0) {
+    test <- cor.test(rhodo_sub, isoly_sub, method = "spearman")
+    cor_results <- rbind(cor_results,
+                         data.frame(
+                           genome = g,
+                           n_copres = n_copres,
+                           correlation = test$estimate,
+                           p_value = test$p.value
+                         ))
+  } else {
+    cor_results <- rbind(cor_results,
+                         data.frame(
+                           genome = g,
+                           n_copres = n_copres,
+                           correlation = NA,
+                           p_value = NA
+                         ))
+  }
+}
+
+# FDR correction
+cor_results$padj <- p.adjust(cor_results$p_value, method = "BH")
+
+# significant genomes
+valid_genomes <- cor_results %>%
+  filter(!is.na(padj), padj < 0.05) %>%
+  pull(genome)
+
+# extract genome-level data for plotting
+genome_data <- individual.abundance %>%
+  filter(genome %in% valid_genomes)
+
+# summary table
+summary_table <- genome_data %>%
+  group_by(genome, family) %>%
+  summarise(
+    total_tpm = sum(perc, na.rm = TRUE),
+    mean_tpm = mean(perc, na.rm = TRUE),
+    n_samples = n_distinct(sample),
+    n_genes = n_distinct(annotation),
+    .groups = "drop"
+  )
+```
+
+NO Significant correlation for any genome
+
+### TonB
+
+NO Correlation found.
+
+```{r prd-tonb-genome-level }
+#| fig-height: 8
+#| fig-width: 12
+#| warning: false
+#| echo: false
+# Build wide table: genome × sample × genes
+all_data <- individual.abundance %>%
+  filter(!is.na(annotation)) %>%
+  group_by(genome, sample, annotation) %>%
+  summarise(tpm_sum = sum(perc), .groups = "drop") %>%
+  pivot_wider(names_from = annotation,
+              values_from = tpm_sum,
+              values_fill = 0)
+
+genomes <- unique(all_data$genome)
+
+cor_results <- data.frame(
+  genome = character(),
+  n_copres = integer(),
+  correlation = numeric(),
+  p_value = numeric(),
+  stringsAsFactors = FALSE
+)
+
+min_samples <- 5   # threshold
+
+for (g in genomes) {
+
+  tmp <- all_data %>% filter(genome == g)
+
+  # skip genomes missing one gene entirely
+  if (!("rhodopsin" %in% colnames(tmp)) |
+      !("tonb" %in% colnames(tmp))) {
+    next
+  }
+
+  rhodo_vals <- tmp$rhodopsin
+  tonb_vals <- tmp$tonb
+
+  # co-presence criterion: both genes > 0 in a sample
+  copres <- (rhodo_vals > 0 & tonb_vals > 0)
+  n_copres <- sum(copres)
+
+  # skip genomes without enough co-presence samples
+  if (n_copres < min_samples) {
+    next
+  }
+
+  # use only co-presence samples for correlation
+  rhodo_sub <- rhodo_vals[copres]
+  tonb_sub <- tonb_vals[copres]
+
+  # require variance > 0
+  if (sd(rhodo_sub) > 0 & sd(tonb_sub) > 0) {
+    test <- cor.test(rhodo_sub, tonb_sub, method = "spearman")
+    cor_results <- rbind(cor_results,
+                         data.frame(
+                           genome = g,
+                           n_copres = n_copres,
+                           correlation = test$estimate,
+                           p_value = test$p.value
+                         ))
+  } else {
+    cor_results <- rbind(cor_results,
+                         data.frame(
+                           genome = g,
+                           n_copres = n_copres,
+                           correlation = NA,
+                           p_value = NA
+                         ))
+  }
+}
+
+# FDR correction
+cor_results$padj <- p.adjust(cor_results$p_value, method = "BH")
+
+# significant genomes
+valid_genomes <- cor_results %>%
+  filter(!is.na(padj), padj < 0.05) %>%
+  pull(genome)
+
+# extract genome-level data for plotting
+genome_data <- individual.abundance %>%
+  filter(genome %in% valid_genomes)
+
+# summary table
+summary_table <- genome_data %>%
+  group_by(genome, family) %>%
+  summarise(
+    total_tpm = sum(perc, na.rm = TRUE),
+    mean_tpm = mean(perc, na.rm = TRUE),
+    n_samples = n_distinct(sample),
+    n_genes = n_distinct(annotation),
+    .groups = "drop"
+  )
+```
+
+## recA
+
+No correlation
+
+```{r prd-reca-genome-level }
+#| fig-height: 8
+#| fig-width: 12
+#| warning: false
+#| echo: false
+# Build wide table: genome × sample × genes
+all_data <- individual.abundance %>%
+  filter(!is.na(annotation)) %>%
+  group_by(genome, sample, annotation) %>%
+  summarise(tpm_sum = sum(perc), .groups = "drop") %>%
+  pivot_wider(names_from = annotation,
+              values_from = tpm_sum,
+              values_fill = 0)
+
+genomes <- unique(all_data$genome)
+
+cor_results <- data.frame(
+  genome = character(),
+  n_copres = integer(),
+  correlation = numeric(),
+  p_value = numeric(),
+  stringsAsFactors = FALSE
+)
+
+min_samples <- 5   # threshold
+
+for (g in genomes) {
+
+  tmp <- all_data %>% filter(genome == g)
+
+  # skip genomes missing one gene entirely
+  if (!("rhodopsin" %in% colnames(tmp)) |
+      !("reca" %in% colnames(tmp))) {
+    next
+  }
+
+  rhodo_vals <- tmp$rhodopsin
+  reca_vals <- tmp$reca
+
+  # co-presence criterion: both genes > 0 in a sample
+  copres <- (rhodo_vals > 0 & reca_vals > 0)
+  n_copres <- sum(copres)
+
+  # skip genomes without enough co-presence samples
+  if (n_copres < min_samples) {
+    next
+  }
+
+  # use only co-presence samples for correlation
+  rhodo_sub <- rhodo_vals[copres]
+  reca_sub <- reca_vals[copres]
+
+  # require variance > 0
+  if (sd(rhodo_sub) > 0 & sd(reca_sub) > 0) {
+    test <- cor.test(rhodo_sub, reca_sub, method = "spearman")
+    cor_results <- rbind(cor_results,
+                         data.frame(
+                           genome = g,
+                           n_copres = n_copres,
+                           correlation = test$estimate,
+                           p_value = test$p.value
+                         ))
+  } else {
+    cor_results <- rbind(cor_results,
+                         data.frame(
+                           genome = g,
+                           n_copres = n_copres,
+                           correlation = NA,
+                           p_value = NA
+                         ))
+  }
+}
+
+# FDR correction
+cor_results$padj <- p.adjust(cor_results$p_value, method = "BH")
+
+# significant genomes
+valid_genomes <- cor_results %>%
+  filter(!is.na(padj), padj < 0.05) %>%
+  pull(genome)
+
+# extract genome-level data for plotting
+genome_data <- individual.abundance %>%
+  filter(genome %in% valid_genomes)
+
+# summary table
+summary_table <- genome_data %>%
+  group_by(genome, family) %>%
+  summarise(
+    total_tpm = sum(perc, na.rm = TRUE),
+    mean_tpm = mean(perc, na.rm = TRUE),
+    n_samples = n_distinct(sample),
+    n_genes = n_distinct(annotation),
+    .groups = "drop"
+  )
+
+```
+
+## Pepcase
+
+No correlation
+
+```{r prd-pepcase-genome-level }
+#| fig-height: 8
+#| fig-width: 12
+#| warning: false
+#| echo: false
+# Build wide table: genome × sample × genes
+all_data <- individual.abundance %>%
+  filter(!is.na(annotation)) %>%
+  group_by(genome, sample, annotation) %>%
+  summarise(tpm_sum = sum(perc), .groups = "drop") %>%
+  pivot_wider(names_from = annotation,
+              values_from = tpm_sum,
+              values_fill = 0)
+
+genomes <- unique(all_data$genome)
+
+cor_results <- data.frame(
+  genome = character(),
+  n_copres = integer(),
+  correlation = numeric(),
+  p_value = numeric(),
+  stringsAsFactors = FALSE
+)
+
+min_samples <- 5   # threshold
+
+for (g in genomes) {
+
+  tmp <- all_data %>% filter(genome == g)
+
+  # skip genomes missing one gene entirely
+  if (!("rhodopsin" %in% colnames(tmp)) |
+      !("pepcase" %in% colnames(tmp))) {
+    next
+  }
+
+  rhodo_vals <- tmp$rhodopsin
+  pepcase_vals <- tmp$pepcase
+
+  # co-presence criterion: both genes > 0 in a sample
+  copres <- (rhodo_vals > 0 & pepcase_vals > 0)
+  n_copres <- sum(copres)
+
+  # skip genomes without enough co-presence samples
+  if (n_copres < min_samples) {
+    next
+  }
+
+  # use only co-presence samples for correlation
+  rhodo_sub <- rhodo_vals[copres]
+  pepcase_sub <- pepcase_vals[copres]
+
+  # require variance > 0
+  if (sd(rhodo_sub) > 0 & sd(reca_sub) > 0) {
+    test <- cor.test(rhodo_sub, pepcase_sub, method = "spearman")
+    cor_results <- rbind(cor_results,
+                         data.frame(
+                           genome = g,
+                           n_copres = n_copres,
+                           correlation = test$estimate,
+                           p_value = test$p.value
+                         ))
+  } else {
+    cor_results <- rbind(cor_results,
+                         data.frame(
+                           genome = g,
+                           n_copres = n_copres,
+                           correlation = NA,
+                           p_value = NA
+                         ))
+  }
+}
+
+# FDR correction
+cor_results$padj <- p.adjust(cor_results$p_value, method = "BH")
+
+# significant genomes
+valid_genomes <- cor_results %>%
+  filter(!is.na(padj), padj < 0.05) %>%
+  pull(genome)
+
+# extract genome-level data for plotting
+genome_data <- individual.abundance %>%
+  filter(genome %in% valid_genomes)
+
+# summary table
+summary_table <- genome_data %>%
+  group_by(genome, family) %>%
+  summarise(
+    total_tpm = sum(perc, na.rm = TRUE),
+    mean_tpm = mean(perc, na.rm = TRUE),
+    n_samples = n_distinct(sample),
+    n_genes = n_distinct(annotation),
+    .groups = "drop"
+  )
+```
+
+## Ccr
+
+NO correlation
+
+```{r prd-ccr-genome-level }
+#| fig-height: 8
+#| fig-width: 12
+#| warning: false
+#| echo: false
+# Build wide table: genome × sample × genes
+all_data <- individual.abundance %>%
+  filter(!is.na(annotation)) %>%
+  group_by(genome, sample, annotation) %>%
+  summarise(tpm_sum = sum(perc), .groups = "drop") %>%
+  pivot_wider(names_from = annotation,
+              values_from = tpm_sum,
+              values_fill = 0)
+
+genomes <- unique(all_data$genome)
+
+cor_results <- data.frame(
+  genome = character(),
+  n_copres = integer(),
+  correlation = numeric(),
+  p_value = numeric(),
+  stringsAsFactors = FALSE
+)
+
+min_samples <- 5   # threshold
+
+for (g in genomes) {
+
+  tmp <- all_data %>% filter(genome == g)
+
+  # skip genomes missing one gene entirely
+  if (!("rhodopsin" %in% colnames(tmp)) |
+      !("ccr" %in% colnames(tmp))) {
+    next
+  }
+
+  rhodo_vals <- tmp$rhodopsin
+  ccr_vals <- tmp$pepcase
+
+  # co-presence criterion: both genes > 0 in a sample
+  copres <- (rhodo_vals > 0 & ccr_vals > 0)
+  n_copres <- sum(copres)
+
+  # skip genomes without enough co-presence samples
+  if (n_copres < min_samples) {
+    next
+  }
+
+  # use only co-presence samples for correlation
+  rhodo_sub <- rhodo_vals[copres]
+  ccr_sub <- ccr_vals[copres]
+
+  # require variance > 0
+  if (sd(rhodo_sub) > 0 & sd(reca_sub) > 0) {
+    test <- cor.test(rhodo_sub, ccr_sub, method = "spearman")
+    cor_results <- rbind(cor_results,
+                         data.frame(
+                           genome = g,
+                           n_copres = n_copres,
+                           correlation = test$estimate,
+                           p_value = test$p.value
+                         ))
+  } else {
+    cor_results <- rbind(cor_results,
+                         data.frame(
+                           genome = g,
+                           n_copres = n_copres,
+                           correlation = NA,
+                           p_value = NA
+                         ))
+  }
+}
+
+# FDR correction
+cor_results$padj <- p.adjust(cor_results$p_value, method = "BH")
+
+# significant genomes
+valid_genomes <- cor_results %>%
+  filter(!is.na(padj), padj < 0.05) %>%
+  pull(genome)
+
+# extract genome-level data for plotting
+genome_data <- individual.abundance %>%
+  filter(genome %in% valid_genomes)
+
+# summary table
+summary_table <- genome_data %>%
+  group_by(genome, family) %>%
+  summarise(
+    total_tpm = sum(perc, na.rm = TRUE),
+    mean_tpm = mean(perc, na.rm = TRUE),
+    n_samples = n_distinct(sample),
+    n_genes = n_distinct(annotation),
+    .groups = "drop"
+  )
+
+```
+
+## Extra analysis
+
+Actinomycetes 50 genomes with rhodopsin (total 53 ORFs). They don't actively express rhodopsin in the dataset.
+
+```{r actinos }
+funtax %>%
+  filter(annotation == 'rhodopsin',
+         class == 'Actinomycetes') %>%
+  summarise( n_family = n_distinct(family),
+             n_genome = n_distinct(genome),
+             n_orf    = n_distinct(orf)) %>%
+  mutate(class = 'Actinomycetes' ) %>%
+  kable()
+
+
+```

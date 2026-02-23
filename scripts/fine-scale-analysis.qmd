@@ -1,0 +1,2316 @@
+---
+title: "Fine-scale-top30genomes"
+author: "[Danilo Di Leo](https://github.com/danilodileo)"
+date: today
+format:
+  html:
+    toc: true
+    toc-title: "Table of Contents"
+    toc-depth: 2
+    toc-location: left
+    number-sections: true
+    code-fold: true
+    code-summary: "Show Code"
+    fig-width: 6
+    fig-height: 4
+    highlight-style: github
+    self-contained: true  
+editor: visual
+---
+
+```{r setup}
+#| label: setup
+#| echo: false
+#| cache: true
+
+knitr::opts_chunk$set(echo = TRUE, fig.path='figures/', cache = TRUE, fig.width = 10)
+ggplot2::theme_set(ggplot2::theme_bw())
+
+```
+
+## Data preparation
+
+```{r libraries}
+#| label: libraries
+#| message: false
+#| echo: false
+#| cache: false
+#| include: false
+#| warning: false
+
+library(readr)
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(purrr)
+library(stringr)
+library(ggplot2)
+library(ggrepel)
+library(kfigr)
+library(knitr)
+library(DT)
+library(grateful)
+library(patchwork)
+library(broom)
+library(gt)
+library(tibble)
+library(corrr)
+library(forcats)
+library(shiny)
+library(grid)
+library(ggvenn)
+library(vegan)
+library(reshape2)
+library(ggsignif)
+library(readxl)
+library(ggcorrplot)
+library(FactoMineR)
+library(factoextra)
+library(missMDA)
+library(kableExtra) # For tables
+library(compositions) # For CLR transformation
+library(pheatmap)
+library(gridExtra)
+library(tidytext)  # per reorder_within() e scale_x_reordered
+library(shadowtext)
+library(gt)
+library(reactable)
+library(plotly)
+library(circlize)
+library(ggvenn)
+library(ineq)
+library(ggpmisc)
+library(leaflet)
+library(sf)
+library(rnaturalearth)
+library(rnaturalearthdata)
+library(ggmap)
+library(marmap)
+library(sf)
+library(rnaturalearth)
+library(viridis)
+library(ggplotify)
+library("ComplexHeatmap")
+library(clusterProfiler)
+library(pathview)
+library(ggtext)
+```
+
+```{r palette-and-constants}
+#| echo: false
+
+
+# Colourblind palette
+cb_palette <- c(
+  "#332288", "#88CCEE", "#44AA99", "#117733", "#999933", "#DDCC77",
+  "#CCBB44", "#E69F00", "#CC6677", "#882255", "#AA4499", "#BBBBBB"
+)
+
+# sample order
+sample_order <- c(
+  "ENV1_D1_S3", "ENV1_D3_S3", "ENV1_D5_S3", "ENV1_D7_S3",
+  "ENV1_D1_S6", "ENV1_D3_S6", "ENV1_D5_S6", "ENV1_D7_S6",
+  "ENV2_D1_S3", "ENV2_D3_S3", "ENV2_D5_S3", "ENV2_D7_S3",
+  "ENV2_D1_S6", "ENV2_D3_S6", "ENV2_D5_S6", "ENV2_D7_S6",
+  "ENV3_D1_S3", "ENV3_D3_S3", "ENV3_D5_S3", "ENV3_D7_S3",
+  "ENV3_D1_S6", "ENV3_D3_S6", "ENV3_D5_S6", "ENV3_D7_S6"
+)
+
+genome_vector_ordered <- c(
+# Thalassarchaeaceae
+"GCA_002498985.1_Thalassarchaeaceae",
+"GCA_002730775.1_Thalassarchaeaceae",
+"GCA_030828405.1_Thalassarchaeaceae",
+"GCA_002495525.1_Thalassarchaeaceae",
+
+# Poseidoniaceae
+"GCA_943788655.1_Poseidoniaceae",
+"GCA_943788295.1_Poseidoniaceae",
+"GCA_943789275.1_Poseidoniaceae",
+"GCA_009887135.1_Poseidoniaceae",
+
+# Puniceispirillaceae
+"metabat2.225_Puniceispirillaceae",
+"GCA_905182545.1_Puniceispirillaceae",
+"GCA_028383305.1_Puniceispirillaceae",
+"GCA_913064995.1_Puniceispirillaceae",
+
+# Pelagibacteraceae
+"GCA_028226535.1_Pelagibacteraceae",
+"GCA_028097645.1_Pelagibacteraceae",
+"GCF_943788075.1_Pelagibacteraceae",
+"GCA_028227525.1_Pelagibacteraceae",
+"GCA_028228595.1_Pelagibacteraceae",
+"GCA_902560015.1_Pelagibacteraceae",
+"GCA_003279715.1_Pelagibacteraceae",
+
+# Pseudothioglobaceae
+"GCA_902556205.1_Pseudothioglobaceae",
+"GCA_902510115.1_Pseudothioglobaceae",
+"GCA_902509905.1_Pseudothioglobaceae",
+
+# Other families
+"GCA_900197625.1_Rhodobacteraceae",
+"GCA_003331585.1_CABXJW01",
+"GCA_902509965.1_D2472",
+
+# Porticoccaceae
+"GCA_938092205.1_Porticoccaceae",
+"GCA_943846655.1_Porticoccaceae",
+"GCA_038143955.1_Porticoccaceae",
+"GCA_024644585.1_Porticoccaceae",
+"GCA_018607525.1_Porticoccaceae"
+)
+
+
+```
+
+```{r read-data, cache.lazy=FALSE}
+#| label: read-data
+#| echo: false
+#| warning: false
+
+# Read count table
+# Load count table
+
+counts.rhodo.genomes <- read_tsv('./summary_tables/counts-rhodo-genomes-taxonomy-function.tsv.gz', show_col_types = FALSE)
+
+# Load meatadata Coast and Offshore
+metadata <- read_tsv("./data/envision_metadata.tsv.gz",
+                     show_col_types = FALSE)
+
+# Create daylight variable
+daylight <- data.frame(season = c("Winter", "Spring", "Summer"),
+                       daylight = c(10, 12, 14))
+
+# join metadata with sample information ( site and season)
+metadata <- metadata %>%
+  left_join( counts.rhodo.genomes %>% dplyr::select(sample, site, season) %>% distinct(sample, .keep_all = TRUE), join_by(sample)) %>%
+  filter( site != 'Mesocosm')  %>%
+  left_join(daylight, join_by(season))
+
+genome_size <- read_table('./summary_tables/genome-size.txt', show_col_types = FALSE) %>%
+  left_join(counts.rhodo.genomes %>%
+              distinct(genome, family), join_by(genome)) %>%
+  mutate(genome_with_family = paste0(genome, '_', family))
+
+ko.annotation <- read_tsv('./summary_tables/kofam_annotation_top30genomes.tsv.gz',
+                          show_col_types = FALSE)
+```
+
+```{r filter-low-quality-genomes}
+#| include: false
+#| warning: false
+#| echo: false
+
+# low quality rhodopsins
+counts.rhodo.genomes <- counts.rhodo.genomes %>%
+  filter(annotation == 'rhodopsin') %>%
+group_by(genome, sample) %>%
+  summarise(sum_count = sum(count), .groups = 'drop') %>%
+  filter(sum_count > 4) %>%
+  group_by(genome) %>%
+  summarise(n_sample = n_distinct(sample), .groups = 'drop') %>%
+  filter(n_sample > 2) %>%
+  distinct(genome) %>%
+  inner_join(counts.rhodo.genomes, join_by(genome)) %>%
+  left_join(ko.annotation, join_by(orf))
+
+#  mutate(
+#    ko = case_when(
+#      annotation == "rhodopsin" ~ "K04641",
+#      !is.na(ko) & ko != "-" & ko != "" ~ ko,
+#      TRUE ~ NA_character_
+#    )
+#  ) %>%
+#  filter(!is.na(ko))
+
+# # low quality KOs
+# # Create table for overall dataset KO
+# # 1. Summarise per sample
+# df_sum.ko.counts <- counts.rhodo.genomes %>%
+#   group_by(sample, genome, ko) %>%
+#   summarise(sum = sum(count), .groups = "drop")
+# 
+# # 2. Identify modules to REMOVE:
+# #    low counts AND rare across samples
+# bad_ko.counts <- df_sum.ko.counts %>%
+#   group_by(genome, ko) %>%
+#   summarise(
+#     total_sum = sum(sum),
+#     max_sum = max(sum),
+#     n_samples = n(),
+#     .groups = "drop"
+#   ) %>%
+#   filter(total_sum < 5 & max_sum < 5 & n_samples < 3)
+# 
+# # 3. Remove them while keeping full original structure
+# counts.rhodo.genomes <- counts.rhodo.genomes %>%
+#   semi_join(
+#     df_sum.ko.counts %>% anti_join(bad_ko.counts, by = c("genome", "ko")),
+#     by = c("sample", "genome", "ko")
+#   )
+
+```
+
+```{r renormalized-tables }
+#| include: false
+#| warning: false
+#| echo: false
+# Individual normalization of rhodopsin-containig genomes
+individual.abundance <- counts.rhodo.genomes %>%
+  select(-tpm) %>%
+  group_by(sample, genome) %>%
+  mutate(r = count / length, perc = r / sum(r) * 100) %>%
+  ungroup()
+
+# Family normalization of rhodopsin-containig genomes
+family.abundance <- counts.rhodo.genomes %>%
+  select(-tpm) %>%
+  group_by(sample, family) %>%
+  mutate(r = count / length, tpm = r / sum(r) * 1e6) %>%
+  ungroup()
+
+```
+
+```{r variables}
+#| echo: false
+#| warning: false
+
+# Rhodopsin containing genomes
+# rhodo_genomes <- counts.rhodo.genomes %>%
+#   filter(annotation == "rhodopsin") %>%
+#   group_by(genome, sample) %>%
+#   summarise(sum_count = sum(count), .groups = "drop") %>%
+#   filter(sum_count > 4) %>%
+#   group_by(genome) %>%
+#   summarise(n_sample = n_distinct(sample), .groups = "drop") %>%
+#   filter(n_sample > 2) %>%
+#   pull(genome)
+# 
+# counts.rhodo.genomes <- counts.rhodo.genomes %>%
+#   filter(genome %in% rhodo_genomes)
+# 
+# # Individual abundance of rhodopsin-containig genomes
+# individual.abundance <- counts.rhodo.genomes %>%
+#   select(-tpm) %>%
+#   group_by(sample, genome) %>%
+#   mutate(r = count / length, perc = r / sum(r) * 100) %>%
+#   ungroup()
+# 
+# # Family abundance of rhodopsin-containig genomes
+# family.abundance <- counts.rhodo.genomes %>%
+#   select(-tpm) %>%
+#   group_by(sample, family) %>%
+#   mutate(r = count / length, tpm = r / sum(r) * 1e6) %>%
+#   ungroup()
+# 
+# ######################################
+# # Create table for overall dataset KO
+expanded.ko.individual <- individual.abundance %>%
+  mutate(kegg_ko = strsplit(kegg_ko, ",")) %>%
+  unnest(kegg_ko) %>%
+  mutate(kegg_ko = sub("^ko:", "", kegg_ko))
+
+ko.individual <- expanded.ko.individual %>%
+  mutate(
+    kegg_ko = case_when(
+      annotation == "rhodopsin" ~ "K04641",
+      !is.na(kegg_ko) & kegg_ko != "-" & kegg_ko != "" ~ kegg_ko,
+      TRUE ~ NA_character_
+    )
+  ) %>%
+  filter(!is.na(kegg_ko))
+# 
+# # filter out all modules counts < 5 and in < 7 samples
+# # 1. Summarise per sample
+df_sum.ko.individual <- ko.individual %>%
+  group_by(sample, genome, kegg_ko) %>%
+  summarise(sum = sum(count), .groups = "drop")
+# 
+# # 2. Identify modules to REMOVE:
+# #    low counts AND rare across samples
+bad_ko.individual <- df_sum.ko.individual %>%
+  group_by(genome, kegg_ko) %>%
+  summarise(
+    total_sum = sum(sum),
+    max_sum = max(sum),
+    n_samples = n(),
+    .groups = "drop"
+  ) %>%
+  filter(total_sum < 5 & max_sum < 5 & n_samples < 3)
+# 
+# # 3. Remove them while keeping full original structure
+ko.individual <- ko.individual %>%
+  semi_join(
+    df_sum.ko.individual %>% anti_join(bad_ko.individual, by = c("genome", "kegg_ko")),
+    by = c("sample", "genome", "kegg_ko")
+  )
+
+# Load ko with ClusterProfiler
+kegg_data <- download_KEGG("ko")
+
+##################
+# Get top 30 genomes expressing most rhodopsin
+top30.rhodo.genomes <- counts.rhodo.genomes %>%
+  filter(annotation == 'rhodopsin') %>%
+  group_by(genome) %>%
+  summarise(rhodo_tpm = sum(tpm), .groups = 'drop') %>%
+  slice_max(rhodo_tpm, n = 30)
+
+dominance <- counts.rhodo.genomes %>%
+  group_by(genome, sample, site) %>%
+  summarise(sum_tpm = sum(tpm), .groups = 'drop') %>%
+  group_by(genome, site) %>%
+  summarise(avg = mean(sum_tpm), .groups = 'drop') %>%
+  pivot_wider(names_from = site, values_from = avg, values_fill = 0) %>%
+  mutate(
+    ratio = Coast / Offshore,
+    dominance = case_when(
+      ratio > 1 ~ "coast",
+      TRUE ~ "offshore"
+    )
+  ) %>%
+  left_join(counts.rhodo.genomes %>%
+              distinct(genome, family, genus), join_by(genome)) %>%
+  mutate(genome_family = paste0(genome, '_', family, '_', genus)) %>%
+  select(genome_family, dominance, genome)
+
+dominance.investment <- individual.abundance %>%
+  filter(annotation == 'rhodopsin') %>%
+  group_by(genome, sample, site) %>%
+  summarise(sum_tpm = sum(perc), .groups = 'drop') %>%
+  group_by(genome, site) %>%
+  summarise(avg = mean(sum_tpm), .groups = 'drop') %>%
+  pivot_wider(names_from = site, values_from = avg, values_fill = 0) %>%
+  mutate(
+    ratio = Coast / Offshore,
+    dominance_investment = case_when(
+      ratio > 1 ~ "coast",
+      TRUE ~ "offshore"
+    )
+  ) %>%
+  left_join(counts.rhodo.genomes %>%
+              distinct(genome, family, genus), join_by(genome)) %>%
+  mutate(genome_family = paste0(genome, '_', family, '_', genus)) %>%
+  select(genome_family, dominance_investment, genome)
+
+dominance.table <- dominance %>%
+  left_join(dominance.investment, join_by(genome_family,genome)) %>%
+  filter(genome %in% top30.rhodo.genomes)
+```
+
+## Table with stats for top 30 genomes
+
+```{r}
+summary <- top30.rhodo.genomes %>%
+  select(genome) %>%
+  inner_join(counts.rhodo.genomes, join_by(genome)) %>%
+  group_by(genome, family, genus) %>%
+  summarise(n_orf = n_distinct(orf))
+```
+
+## Digging into visual patterns
+
+With this part of analysis I am trying to dig into pattern I can see from fig.4 manuscript (see below).
+
+I will focus on:
+
+-   Porticocco (2 genomes)
+
+-   thalasso (2 genomes)
+
+-   pelagi (2 genomes)
+
+```{r heatmap-code-preparation}
+#| echo: false
+#| warning: false
+# Rhodopsin abundance ranking heatmap (only 30)
+
+# Pull genome and family names for those 30 genomes
+rhodo_levels <- counts.rhodo.genomes %>%
+  inner_join(top30.rhodo.genomes, join_by(genome)) %>%
+  filter(annotation == 'rhodopsin') %>%
+  group_by(genome, family, genus) %>%
+  summarise(total_tpm = sum(tpm), .groups = 'drop') %>%
+  mutate(genome_with_family = paste0(genome, "_", family)) %>% # '_', genus)) %>%
+  arrange(desc(total_tpm)) %>%
+  mutate(genome_with_family = factor(genome_with_family, levels = genome_with_family)) %>%
+  pull(genome_with_family)
+
+# Top 30 genomes based on abundance for heatmap
+top30genomes.prd.abundance <- counts.rhodo.genomes %>%
+  inner_join(top30.rhodo.genomes, join_by(genome)) %>%
+  filter(annotation == 'rhodopsin') %>%
+  group_by(sample, genome, family, site, season, day, genus) %>%
+  summarise(sum_tpm = sum(tpm), .groups = 'drop') %>%
+  mutate(sample = factor(sample, levels = sample_order)) %>%
+  mutate(genome_with_family = paste0(genome, "_", family), # '_', genus),
+         genome_with_family = factor(genome_with_family, levels = rhodo_levels))
+
+# Get the abundance of these 30 genomes
+top30genomes.abundance <- counts.rhodo.genomes %>%
+  inner_join(top30.rhodo.genomes, join_by(genome)) %>%
+  group_by(sample, genome, family, site, season, day, genus) %>%
+  summarise(sum_tpm = sum(tpm), .groups = 'drop') %>%
+  mutate(sample = factor(sample, levels = sample_order)) %>%
+  mutate(genome_with_family = paste0(genome, "_", family), # '_', genus),
+         genome_with_family = factor(genome_with_family, levels = rhodo_levels))
+
+
+# Create heatmap based on abundance of top 30 genomes expressing rhodopsin.
+# ------------------------------
+# 1️⃣ Prepare row annotation
+# ------------------------------
+row_annot <- top30genomes.abundance %>%
+  distinct(sample, site, season, day) %>%
+  mutate(
+    site = factor(site, levels = c("Offshore", "Coast")),
+    season = factor(season, levels = c("Winter", "Spring", "Summer")),
+    day = as.numeric(day)
+  ) %>%
+  arrange(site, season, day) %>%
+  column_to_rownames("sample")
+
+# ------------------------------
+# Prepare matrix for 1st heatmap
+# ------------------------------
+heatmap_mat_tpm <- top30genomes.abundance %>%
+  select(sample, genome_with_family, sum_tpm) %>%
+  pivot_wider(names_from = genome_with_family, values_from = sum_tpm, values_fill = 0) %>%
+  column_to_rownames("sample") %>%
+  as.matrix()
+
+# Apply sqrt and cap extreme values
+heatmap_mat_tpm_scaled <- log1p(heatmap_mat_tpm)
+max_val_tpm <- quantile(heatmap_mat_tpm_scaled, 0.95)
+heatmap_mat_tpm_scaled <- pmin(heatmap_mat_tpm_scaled, max_val_tpm)
+
+# Transpose for flipped heatmap
+heatmap_mat_tpm_scaled_t <- t(heatmap_mat_tpm_scaled)
+
+# ------------------------------
+# Prepare matrix for 2nd heatmap
+# ------------------------------
+heatmap_mat_perc <- individual.abundance %>%
+  inner_join(top30.rhodo.genomes, join_by(genome)) %>%
+  filter(annotation == "rhodopsin") %>%
+  group_by(sample, genome, family, site, season, day) %>%
+  summarise(sum_perc = sum(perc), .groups = "drop") %>%
+  mutate(genome_with_family = paste0(genome, "_", family)) %>%
+  select(sample, genome_with_family, sum_perc) %>%
+  pivot_wider(names_from = genome_with_family, values_from = sum_perc, values_fill = 0) %>%
+  column_to_rownames("sample") %>%
+  as.matrix()
+
+# Apply sqrt and cap
+heatmap_mat_perc_scaled <- sqrt(heatmap_mat_perc)
+max_val_perc <- quantile(heatmap_mat_perc_scaled, 0.95)
+heatmap_mat_perc_scaled <- pmin(heatmap_mat_perc_scaled, max_val_perc)
+
+# Transpose for flipped heatmap
+heatmap_mat_perc_scaled_t <- t(heatmap_mat_perc_scaled)
+
+# ------------------------------
+# Annotation for samples
+# ------------------------------
+ha_col <- HeatmapAnnotation(
+  Site = as.character(row_annot$site),
+  Season = as.character(row_annot$season),
+  Day = as.character(row_annot$day),
+  col = list(
+    Site = c("Offshore" = "blue", "Coast" = "orange"),
+    Season = c("Winter" = "lightblue", "Spring" = "yellow", "Summer" = "red"),
+    Day = c("1" = "grey80", "3" = "grey50", "5" = "grey30", "7" = "grey10")
+  ),
+  show_legend = TRUE,
+  show_annotation_name = TRUE,
+  annotation_name_side = "left",
+  annotation_name_gp = gpar(fontsize = 8, fontface = "bold"),
+  annotation_name_rot = 0
+)
+
+ha_col.2 <- HeatmapAnnotation(
+  Site = as.character(row_annot$site),
+  Season = as.character(row_annot$season),
+  Day = as.character(row_annot$day),
+  col = list(
+    Site = c("Offshore" = "blue", "Coast" = "orange"),
+    Season = c("Winter" = "lightblue", "Spring" = "yellow", "Summer" = "red"),
+    Day = c("1" = "grey80", "3" = "grey50", "5" = "grey30", "7" = "grey10")
+  ),
+  show_legend = TRUE,
+  show_annotation_name = FALSE
+)
+
+
+# Ensure columns of the original (before transpose) match
+common_genomes <- intersect(colnames(heatmap_mat_tpm_scaled), colnames(heatmap_mat_perc_scaled))
+
+# Subset both matrices to these genomes and keep the same order
+heatmap_mat_tpm_scaled <- heatmap_mat_tpm_scaled[, common_genomes]
+heatmap_mat_perc_scaled <- heatmap_mat_perc_scaled[, common_genomes]
+
+# Transpose
+heatmap_mat_tpm_scaled_t <- t(heatmap_mat_tpm_scaled)
+heatmap_mat_perc_scaled_t <- t(heatmap_mat_perc_scaled)
+
+
+# Define desired sample order
+sample_order <- row_annot %>%
+  rownames_to_column("sample") %>%
+  arrange(site, season, day) %>%
+  pull(sample)
+
+# Reorder columns of TPM and % expression matrices
+heatmap_mat_tpm_scaled_t <- heatmap_mat_tpm_scaled_t[, sample_order, drop = FALSE]
+heatmap_mat_perc_scaled_t <- heatmap_mat_perc_scaled_t[, sample_order, drop = FALSE]
+
+# ------------------------------
+# Prepare matrix for 3rd heatmap
+# ------------------------------
+top30genomes.prd.abundance <- counts.rhodo.genomes %>%
+  inner_join(top30.rhodo.genomes, join_by(genome)) %>%
+  filter(annotation == 'rhodopsin') %>%
+  group_by(sample, genome, family, genus) %>%
+  summarise(sum_tpm = sum(tpm), .groups = 'drop') %>%
+  mutate(genome_with_family = paste0(genome, "_", family), # '_', genus),
+         genome_with_family = factor(genome_with_family, levels = rhodo_levels))
+
+heatmap_mat_prd <- top30genomes.prd.abundance %>%
+  select(sample, genome_with_family, sum_tpm) %>%
+  pivot_wider(names_from = genome_with_family, values_from = sum_tpm, values_fill = 0) %>%
+  column_to_rownames("sample") %>%
+  as.matrix()
+
+# Cap values at 300 (like ggplot scale)
+heatmap_mat_prd_capped <- pmin(heatmap_mat_prd, 300)
+
+# Transpose for flipped layout
+heatmap_mat_prd_capped_t <- t(heatmap_mat_prd_capped)
+
+## 0) Ensure columns = samples are in the same order for all 3 (before transpose)
+sample_order <- rownames(row_annot)
+heatmap_mat_tpm_scaled   <- heatmap_mat_tpm_scaled[sample_order, , drop = FALSE]
+heatmap_mat_perc_scaled  <- heatmap_mat_perc_scaled[sample_order, , drop = FALSE]
+heatmap_mat_prd_capped   <- heatmap_mat_prd_capped[sample_order, , drop = FALSE]
+
+## 1) Use TPM’s genome set/order as the reference
+genome_ref <- colnames(heatmap_mat_tpm_scaled)
+
+align_to_ref <- function(m, ref_cols) {
+  # add any missing genomes as all-zeros
+  missing <- setdiff(ref_cols, colnames(m))
+  if (length(missing)) {
+    m <- cbind(
+      m,
+      matrix(0, nrow = nrow(m), ncol = length(missing),
+             dimnames = list(rownames(m), missing))
+    )
+  }
+  # keep only ref genomes and in the same order
+  m[, ref_cols, drop = FALSE]
+}
+
+heatmap_mat_perc_scaled <- align_to_ref(heatmap_mat_perc_scaled, genome_ref)
+heatmap_mat_prd_capped  <- align_to_ref(heatmap_mat_prd_capped,  genome_ref)
+
+## 2) Now transpose — rows will be the SAME genomes across all three
+heatmap_mat_tpm_scaled_t  <- t(heatmap_mat_tpm_scaled)
+heatmap_mat_perc_scaled_t <- t(heatmap_mat_perc_scaled)
+heatmap_mat_prd_capped_t  <- t(heatmap_mat_prd_capped)
+
+row_annot$site   <- factor(row_annot$site, levels = c("Offshore", "Coast"))
+row_annot$season <- factor(row_annot$season, levels = c("Winter", "Spring", "Summer"))
+
+# ------------------------------
+# 2️⃣ Build heatmaps
+# ------------------------------
+
+ht1 <- Heatmap(
+  heatmap_mat_tpm_scaled_t,
+  name = "LogTPM",
+  row_order = genome_vector_ordered,
+  cluster_rows = FALSE,
+  cluster_columns = FALSE,
+  top_annotation = ha_col,
+  column_split = list(
+    row_annot$site,
+    row_annot$season
+  ),
+  column_gap = unit(1, "mm"),
+  col = colorRamp2(
+    c(0, median(heatmap_mat_tpm_scaled_t), max(heatmap_mat_tpm_scaled_t)),
+    c("white", "yellow", "red")
+  ),
+  show_row_names = TRUE,
+  show_column_names = FALSE,
+  row_names_gp = gpar(fontsize = 6),
+  column_names_gp = gpar(fontsize = 4),
+  border = TRUE,
+  rect_gp = gpar(col = "black", lwd = 0.3),
+  column_title = "Genome-wide transcription level"
+)
+
+col_order_left <- column_order(ht1)
+
+ht2 <- Heatmap(
+  heatmap_mat_perc_scaled_t,
+  name = "% Expression",
+  row_order = genome_vector_ordered,
+  cluster_rows = FALSE,
+  cluster_columns = FALSE,
+  top_annotation = ha_col.2,
+  column_split = list(
+    row_annot$site,
+    row_annot$season
+  ),
+  column_gap = unit(1, "mm"),
+  show_row_names = TRUE,
+  show_column_names = FALSE,
+  border = TRUE,
+  col = colorRamp2(c(0, max_val_perc/2, max_val_perc), c("white", "yellow", "red")),
+  row_names_gp = gpar(fontsize = 6),
+  column_title = 'Investment rhodopsin expression',
+  rect_gp = gpar(col = "black", lwd = 0.3),
+  column_names_gp = gpar(fontsize = 4)
+)
+
+heatmap_mat_prd_capped_t <- heatmap_mat_prd_capped_t[, sample_order, drop = FALSE]  # for third heatmap
+
+ht3 <- Heatmap(
+  heatmap_mat_prd_capped_t,
+  name = "Rhodopsin TPM",
+  row_order = genome_vector_ordered,
+  cluster_rows = FALSE,
+  cluster_columns = FALSE,
+  top_annotation = ha_col.2,
+  column_split = list(
+    row_annot$site,
+    row_annot$season
+  ),
+  column_gap = unit(1, "mm"),
+  show_row_names = TRUE,
+  show_column_names = FALSE,
+  row_names_gp = gpar(fontsize = 10),
+  col = colorRamp2(c(0, 150, 300), c("white", "yellow", "red")),
+  column_names_gp = gpar(fontsize = 10),
+  border = TRUE,
+  rect_gp = gpar(col = "black", lwd = 0.3),
+  column_title = 'Rhodopsin expression'
+)
+
+
+####### 
+# add genomesize
+# Align to final row order
+# ht1 row order
+row_order_ref <- rownames(heatmap_mat_tpm_scaled_t)
+genome_size <- genome_size %>%
+  mutate(size = size/1000000)
+
+# Force the correct order
+genome_size_vector <- genome_size$size[match(row_order_ref, genome_size$genome_with_family)]
+
+# Build matrix with identical row names in identical order
+genome_size_mat <- matrix(
+  genome_size_vector,
+  ncol = 1,
+  dimnames = list(row_order_ref, "Genome size")
+)
+
+genome_min <- min(genome_size_vector, na.rm = TRUE)
+genome_med <- median(genome_size_vector, na.rm = TRUE)
+genome_max <- max(genome_size_vector, na.rm = TRUE)
+
+ht4 <- Heatmap(
+  genome_size_mat,
+  name = "Genome size (Mbp)",
+  cluster_rows = FALSE,
+  cluster_columns = FALSE,
+  show_row_names = TRUE,
+  show_column_names = FALSE,
+  col = colorRamp2(
+    c(genome_min, genome_max),
+    c("lightblue", "#7F2704")),
+  border = TRUE,
+  row_names_gp = gpar(fontsize = 10),
+  rect_gp = gpar(col = "black", lwd = 0.3)
+)
+```
+
+```{r heatmaps-based-on-top-30-genomes-expressing-rhodopsin }
+#| fig-width: 15
+#| fig-height: 10
+#| warning: false
+#| echo: false
+
+ht_list <- ht1 + ht3 + ht2 + ht4
+draw(
+  ht_list,
+  heatmap_legend_side = "bottom",
+  annotation_legend_side = "bottom",
+  merge_legend = TRUE
+)
+
+```
+
+**Fig. 4 Genome transcription level and rhodopsin expression dynamics across sites and seasons.** Heatmaps show the (left) genome transcription (TPM), (middle) rhodopsin TPM within genomes, and (right) rhodopsin expression as % of total TPM of the 30 genomes expressing most rhodpsin. TPM where rescaled using logarithmic for visualisation purposes. Rows represent genomes, columns represent samples ordered by site (light blue, orange), season (winter-gray,spring-yellow, summer-red), and day (shade of grey 1, 3, 5, 7). Families with strong seasonal rhodopsin expression (Porticoccaceae, Poseidonaceae, and Puniceispirillaceae) contrast with high total transcript activity but weakly expressing groups (SAR11/Pelagibacteraceae, Thalassarchaeaceae). The strongest rhodopsin relative transcription occur in coastal summer (Days 3–5). GCA_018607525.1, GCA_024644585.1
+
+```{r save-heatmap-as-svg}
+
+# svglite("top30_rhodopsin_heatmaps.svg", width = 14, height = 10)
+# 
+# draw(
+#   ht_list,
+#   heatmap_legend_side = "bottom",
+#   annotation_legend_side = "bottom",
+#   merge_legend = TRUE
+# )
+# 
+# dev.off()
+```
+
+```{r genome-size-plot}
+genome_size$genome_with_family <- reorder(genome_size$genome_with_family, genome_size$size)
+
+ggplot(genome_size, aes(
+  x = genome_with_family,
+  y = size
+)) +
+  geom_col(fill = "#4daf4a") +
+  coord_flip() +
+  theme_bw() +
+  theme(
+    axis.title.y = element_blank(),
+    axis.text.y = element_text(size = 6),
+    axis.title.x = element_text(size = 10),
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor.y = element_blank()
+  ) +
+  labs(
+    y = "Genome size (bp or Mbp)",
+    title = "Genome size per genome"
+  )
+
+```
+
+```{r correlation-rhodopsin-within-genome-and-genome-transcription-level}
+#| fig-width: 13
+#| fig-height: 8
+#| warning: false
+#| echo: false
+
+# table with total tpm level per genome
+tr.lvl.counts.rhodo.genomes <- counts.rhodo.genomes %>%
+  filter(genome %in% (top30.rhodo.genomes %>%
+                        pull(genome))) %>%
+  group_by(sample, genome, family) %>%
+  summarise(transcript_level = sum(tpm), .groups = 'drop') %>%
+  mutate(type = 'total_tpm_level')
+           
+# table with total prd contribution per genome
+prd.lvl.counts.rhodo.genomes <- individual.abundance %>%
+  filter(genome %in% (top30.rhodo.genomes %>%
+                        pull(genome)),
+         annotation == 'rhodopsin') %>%
+  group_by(sample, genome, family) %>%
+  summarise(transcript_level = sum(perc), .groups = 'drop') %>%
+  mutate(type = 'total_rhodopsin_contribution')
+
+# 
+prd.genome.correlation <- bind_rows(tr.lvl.counts.rhodo.genomes,
+                prd.lvl.counts.rhodo.genomes) %>%
+  pivot_wider(values_from = transcript_level, names_from = type) %>%
+  mutate(
+    log_tpm = log(total_tpm_level),
+    log_rhodopsin = log(total_rhodopsin_contribution)
+  )
+
+# Spearman correlation
+library(ggpubr)
+
+g1 <- ggplot(
+  prd.genome.correlation %>%
+    left_join(
+      counts.rhodo.genomes %>%
+        distinct(sample, genome, site, season),
+      join_by(sample, genome)
+    ),
+  aes(x = log_tpm, y = log_rhodopsin, shape = site, color = season)
+) +
+  geom_point(alpha = 0.6, size = 2) +
+
+  # OPTIONAL: visual guide only (no CI, no interpretation)
+  geom_smooth(
+    method = "lm",
+    se = FALSE,
+    colour = "black",
+    size = 0.8,
+    aes(group = 1)
+  ) +
+  # Spearman correlation annotation
+  stat_cor(
+    method = "spearman",
+    aes(group = 1),
+    label.x.npc = "left",
+    label.y.npc = "top",
+    size = 4
+  ) +
+  scale_color_manual(values = c("green", "red", "blue")) +
+
+  theme_minimal(base_size = 14) +
+  labs(
+    x = "log(Total TPM level)",
+    y = "log(Total rhodopsin contribution)",
+    title = "Relationship between Genome-wide transcription and Rhodopsin Expression"
+  ) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold"),
+    panel.grid.minor = element_blank(),
+    panel.grid.major = element_line(color = "gray90"),
+    axis.title = element_text(face = "bold")
+  )
+
+
+```
+
+```{r correlation-rhodopsin-within-genome-and-genome-transcription-level-by-family}
+#| fig-width: 13
+#| fig-height: 8
+#| warning: false
+#| echo: false
+# Calculate p-values for genomes
+fam.corr_stats <- prd.genome.correlation %>%
+  group_by(family) %>%
+  summarise(
+    ct = list(cor.test(log_tpm, log_rhodopsin, method = "spearman")),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    rho   = map_dbl(ct, ~ .x$estimate),
+    p_raw = map_dbl(ct, ~ .x$p.value),
+    p_adj = p.adjust(p_raw, method = "BH"),
+    label = paste0(
+    "ρ = ", round(rho, 2),
+    "\nBH p = ", format.pval(p_adj, eps = 1e-16)
+  )
+  )
+
+
+
+ggplot(
+  prd.genome.correlation %>%
+    left_join(
+      counts.rhodo.genomes %>%
+        distinct(sample, genome, site, season),
+      join_by(sample, genome)
+    ) %>%
+    left_join(fam.corr_stats, by = "family"),
+  aes(x = log_tpm, y = log_rhodopsin)
+) +
+  geom_point(aes(shape = site, colour = season),
+             alpha = 0.6, size = 2) +
+
+  geom_smooth(
+    method = "lm",
+    se = FALSE,
+    colour = "black",
+    size = 0.6,
+    aes(group = 1)
+  ) +
+
+  geom_label(
+  aes(label = label),
+  x = -Inf, y = Inf,
+  hjust = -0.05, vjust = 1.1,
+  size = 3,
+  label.size = 0,        # no border
+  fill = "white",
+  alpha = 0.8
+  ) +
+
+  facet_wrap(~ family, scales = "free") +
+  theme_minimal()
+
+```
+
+```{r correlation-rhodopsin-within-genome-and-genome-transcription-level-by-genome}
+#| fig-width: 15
+#| fig-height: 15
+#| warning: false
+#| echo: false
+corr_stats <- prd.genome.correlation %>%
+  group_by(genome) %>%
+  summarise(
+    ct = list(cor.test(log_tpm, log_rhodopsin, method = "spearman")),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    rho   = map_dbl(ct, ~ .x$estimate),
+    p_raw = map_dbl(ct, ~ .x$p.value),
+    p_adj = p.adjust(p_raw, method = "BH"),
+    label = paste0(
+      "ρ = ", round(rho, 2),
+      "\nBH p = ", format.pval(p_adj, eps = 1e-16)
+    )
+  )
+
+plot_df <- prd.genome.correlation %>%
+  left_join(
+    counts.rhodo.genomes %>%
+      distinct(sample, genome, site, season),
+    join_by(sample, genome)
+  ) %>%
+  left_join(corr_stats, by = "genome")
+
+ggplot(
+  plot_df,
+  aes(x = log_tpm, y = log_rhodopsin)
+) +
+  geom_point(
+    aes(shape = site, colour = season),
+    alpha = 0.6, size = 2
+  ) +
+
+  # visual guide only
+  geom_smooth(
+    method = "lm",
+    se = FALSE,
+    colour = "black",
+    size = 0.6,
+    aes(group = 1)
+  ) +
+
+  # Spearman + BH annotation
+  geom_label(
+    aes(label = label),
+    x = -Inf, y = Inf,
+    hjust = -0.05, vjust = 1.1,
+    size = 3,
+    label.size = 0,
+    fill = "white",
+    alpha = 0.8
+  ) +
+
+  scale_color_manual(values = c("green", "red", "blue")) +
+  facet_wrap(~ genome + family, scales = "free", drop = TRUE) +
+
+  theme_minimal(base_size = 14) +
+  labs(
+    x = "log(Total TPM level)",
+    y = "log(Total rhodopsin contribution)"
+  )
+
+```
+
+```{r heatmap-negative-corr}
+#| fig-width: 10
+# correlation matrix: one rho per genome
+# keep all genomes, mark non-significant as NA
+corr_stats_full <- prd.genome.correlation %>%
+  filter(genome %in% (top30.rhodo.genomes %>%
+           distinct(genome) %>%
+           pull(genome)),
+         !is.na(log_rhodopsin)) %>%
+  mutate(genome_w_family = paste0(genome, '_', family)) %>%
+  group_by(genome_w_family) %>%
+  summarise(
+    rho = cor(log_tpm, log_rhodopsin, method = "spearman"),
+    p_raw = cor.test(log_tpm, log_rhodopsin, method = "spearman")$p.value,
+    .groups = "drop"
+  ) %>%
+  mutate(
+    p_adj = p.adjust(p_raw, method = "BH"),
+    stars = case_when(
+      p_adj < 0.001 ~ "***",
+      p_adj < 0.01  ~ "**",
+      p_adj < 0.05  ~ "*",
+      TRUE ~ ""
+    )
+  )
+  
+
+rho_mat <- matrix(corr_stats_full$rho,
+                  ncol = 1,
+                  dimnames = list(corr_stats_full$genome_w_family, "rho"))
+
+sig_mat <- matrix(corr_stats_full$stars,
+                  ncol = 1,
+                  dimnames = list(corr_stats_full$genome_w_family, ""))
+
+
+pal <- colorRampPalette(c("#2166AC", "#FFFFFF", "#D6604D"))(100)
+
+breaks <- seq(-1, 1, length.out = 101)
+pheatmap(
+  t(rho_mat),
+  color = pal,
+  breaks = breaks,
+  display_numbers = t(sig_mat),       # <-- this prints *, **, ***
+  number_color = "black",
+  fontsize_number = 7,
+
+  cluster_rows = TRUE,
+  cluster_cols = FALSE,            # only one column
+
+  cellwidth = 20,
+  cellheight = 15,
+  fontsize = 10,
+  border_color = "black",
+  main = "Spearman correlation\nGenome-wide vs rhodopsin transcription\n(* = BH-significant)"
+)
+
+```
+
+```{r spearman-genome-prd-env }
+#| fig-height: 10
+#| fig-width: 12
+#| warning: false
+#| echo: false
+
+order.env_par <- c('po4', 'no3', 'Turbidity', 'chla_tot', 'pa',
+                   'Salinity','doc', 'daylight','temperature')
+
+# 1. Preapare the dataset by adding prd and removing S6 since I don't have DOC
+prd.gcr.metadata <- individual.abundance %>%
+  inner_join(top30.rhodo.genomes, join_by(genome)) %>%
+  filter( annotation == 'rhodopsin') %>%
+  mutate(genome_family = paste0(genome, '_', family, '_', genus)) %>%
+  dplyr::select(sample, perc, genome_family) %>%
+  group_by(sample, genome_family) %>%
+  summarise( rhodopsin = sum(perc), .groups = 'drop') %>%
+  right_join(metadata, join_by(sample)) %>%
+  select(-day) %>%
+  select(sample, rhodopsin, no3, po4, temperature,
+         chla_tot, Salinity, Turbidity,
+         pa, daylight, season, site,
+         doc, genome_family) %>%
+  pivot_wider(names_from = genome_family, values_from = rhodopsin, values_fill = 0)
+
+# Step 1
+# Select only numeric columns
+prd.numeric_vars <- prd.gcr.metadata %>%
+  dplyr::select(where(is.numeric))
+
+# Ensure that all columns are numeric
+prd.numeric_vars <- as.data.frame(lapply(prd.numeric_vars, as.numeric))
+
+# Compute Spearman correlation matrix
+cor_matrix <- cor(prd.numeric_vars, method = "spearman", use = "pairwise.complete.obs")
+
+# Compute p-value matrix
+prd.p_value_matrix <- matrix(NA, nrow = ncol(prd.numeric_vars), ncol = ncol(prd.numeric_vars))
+rownames(prd.p_value_matrix) <- colnames(prd.numeric_vars)
+colnames(prd.p_value_matrix) <- colnames(prd.numeric_vars)
+
+for(i in 1:(ncol(prd.numeric_vars)-1)) {
+  for(j in (i+1):ncol(prd.numeric_vars)) {
+    prd.test_result <- cor.test(prd.numeric_vars[,i], prd.numeric_vars[,j], method = "spearman")
+    prd.p_value_matrix[i, j] <- prd.test_result$p.value
+    prd.p_value_matrix[j, i] <- prd.test_result$p.value
+  }
+}
+
+# Define which columns are environmental variables and which are families
+prd.env_vars <-c('po4', 'no3', 'Turbidity', 'chla_tot', 'pa',
+                   'Salinity','doc', 'daylight','temperature')
+
+prd.family_vars <- setdiff(colnames(prd.numeric_vars), prd.env_vars)
+
+# Create long-format correlation + p-value data frames
+prd.cor_df <- melt(cor_matrix)
+colnames(prd.cor_df) <- c("Var1", "Var2", "Correlation")
+
+prd.p_df <- melt(prd.p_value_matrix)
+colnames(prd.p_df) <- c("Var1", "Var2", "p_value")
+
+# Filter to keep only env vs. family correlations (not env vs env or family vs family)
+prd.plot_data <- merge(prd.cor_df, prd.p_df, by = c("Var1", "Var2")) %>%
+  filter((Var1 %in% prd.env_vars & Var2 %in% prd.family_vars) |
+         (Var2 %in% prd.env_vars & Var1 %in% prd.family_vars))
+
+# Consistent order: environmental variables on Y and families on X
+prd.plot_data <- prd.plot_data %>%
+  # Make sure Var1 and Var2 are characters (not integers or factors)
+  mutate(
+    Var1 = as.character(Var1),
+    Var2 = as.character(Var2)
+  ) %>%
+  filter(
+    (Var1 %in% prd.env_vars & Var2 %in% prd.family_vars) |
+    (Var2 %in% prd.env_vars & Var1 %in% prd.family_vars)
+  ) %>%
+  mutate(
+    env = ifelse(Var1 %in% prd.env_vars, Var1, Var2),
+    fam = ifelse(Var1 %in% prd.family_vars, Var1, Var2)
+  ) %>%
+  select(env, fam, Correlation, p_value)
+
+# Add BH-adjusted p-values and significance stars
+prd.plot_data_clean_summary <- prd.plot_data %>%
+  left_join(dominance %>%
+              rename(fam ='genome_family'), join_by(fam)) %>%
+  mutate(fam = case_when(
+      dominance == "coast" ~ paste0(fam,'†'),
+      TRUE ~ fam
+    )) %>%
+  mutate(
+    env = as.character(env),
+    fam = as.character(fam)
+  ) %>%
+  group_by(env, fam) %>%
+  summarise(
+    Correlation = mean(Correlation, na.rm = TRUE),
+    p_value = mean(p_value, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    p_adj = p.adjust(p_value, method = "BH"),
+    Significance = ifelse(p_adj < 0.001, "***",
+                   ifelse(p_adj < 0.01,  "**",
+                   ifelse(p_adj < 0.05,  "*", "")))
+  ) %>%
+  select(-p_value)
+
+# Correlation matrix
+prd.cor_mat <- prd.plot_data_clean_summary %>%
+  select(-Significance, -p_adj) %>%
+  pivot_wider(names_from = fam, values_from = Correlation, values_fill = 0) %>%
+  column_to_rownames("env") %>%
+  as.matrix()
+
+# Significance matrix ("" dove non significativo)
+prd.signif_mat <- prd.plot_data_clean_summary %>%
+  select(-Correlation, -p_adj) %>%
+  pivot_wider(names_from = fam, values_from = Significance, values_fill = "") %>%
+  column_to_rownames("env") %>%
+  as.matrix()
+
+prd.signif_mat[is.na(prd.signif_mat)] <- ""
+
+p0 <- pheatmap(
+  prd.cor_mat,
+  cluster_rows = TRUE,
+  cluster_cols = TRUE,
+  display_numbers = prd.signif_mat,
+  #col_order = genome_vector_ordered,
+  number_color = "black",
+  color = colorRampPalette(c("blue", "white", "red"))(100),
+  breaks = seq(-1, 1, length.out = 101),  # force -1 to 1 scale
+  main = "Spearman correlation - Environmental vs prd genome level",
+  fontsize = 10,
+  fontsize_row = 12,
+  fontsize_col = 12,
+  cellwidth = 15,
+  cellheight = 13,
+  treeheight_row = 7,
+  treeheight_col = 20,
+  #scale = "column",
+  legend = FALSE,
+  fontsize_number = 10,
+  border_color = "black" )
+```
+
+### Thalassoarcheacaeae
+
+```{r thalasso-top30kos }
+#| fig-width: 10
+#| fig-height: 9
+#| warning: false
+#| echo: false
+# 3. Remove them while keeping full original structure
+thala.ko.find.filtered <- individual.abundance %>%
+  filter(genome %in% c('GCA_002730775.1', 'GCA_002498985.1')) %>%
+  select(-description)
+
+# annotate ko
+ko_vec <- thala.ko.find.filtered %>%
+  distinct(ko) %>%
+  pull(ko)
+
+anno <- bitr_kegg(
+  ko_vec,
+  fromType = "kegg",
+  toType   = "Path",
+  organism = "ko"
+) |>
+  left_join(kegg_data$KEGGPATHID2NAME, by = c("Path" = "from")) %>%
+  rename(ko = 'kegg',
+         description = 'to')
+
+# Add annotation
+thala.ko.find.filtered <- thala.ko.find.filtered %>%
+  left_join(anno, join_by(ko))
+
+thala.ko.find.filtered <- thala.ko.find.filtered %>%
+  mutate(
+    description = ifelse(ko == "K04641", "rhodopsin", description)
+  ) %>%
+  filter(!is.na(description))
+
+top30_ko_775 <- thala.ko.find.filtered %>%
+  filter(genome == 'GCA_002730775.1') %>%
+  group_by(sample, ko) %>%
+  summarise(sum_perc = sum(perc), .groups = "drop") %>%
+  group_by(ko) %>%
+  summarise(avg = mean(sum_perc), .groups = "drop") %>%
+  slice_max(avg, n = 30) %>%
+  pull(ko)
+
+top30_ko_985 <- thala.ko.find.filtered %>%
+  filter(genome == 'GCA_002498985.1') %>%
+  group_by(sample, ko) %>%
+  summarise(sum_perc = sum(perc), .groups = "drop") %>%
+  group_by(ko) %>%
+  summarise(avg = mean(sum_perc), .groups = "drop") %>%
+  slice_max(avg, n = 30) %>%
+  pull(ko)
+
+join.kos <- unique(c(top30_ko_985, top30_ko_775))
+
+same <- intersect(top30_ko_985, top30_ko_775)
+only.985 <- setdiff(top30_ko_985, top30_ko_775)
+only.775 <- setdiff(top30_ko_775, top30_ko_985)
+
+ko_dict.thala <- c(
+  K04043 = "molecular chaperone DnaK",
+  K03124 = "transcription initiation factor TFIIB",
+  K02121 = "V/A-type H+/Na+-transporting",
+  K03120 = "transcription initiation factor TFIID",
+  K04641 = "rhodopsin",
+  K00024 = "malate dehydrogenase",
+  K02124 = "V/A-type H+/Na+-transporting ATPase subunit K",
+  K02119 = "V/A-type H+/Na+-transporting ATPase subunit C",
+  K00252 = "glutaryl-CoA dehydrogenase",
+  K00382 = "dihydrolipoyl dehydrogenase",
+  K03237 = "translation initiation factor 2 subunit 1",
+  K02991 = "small subunit ribosomal protein",
+  K01915 = "glutamine synthetase",
+  K13525 = "transitional endoplasmic reticulum ATPase",
+  K02117 = "V/A-type H+/Na+-transporting ATPase subunit A",
+  K00175 = "2-oxoglutarate/2-oxoacid ferredoxin oxidoreductase",
+  K02120 = "V/A-type H+/Na+-transporting ATPase subunit D",
+  K01623 = "fructose-bisphosphate aldolase",
+  K03058 = "DNA-directed RNA polymerase subunit N",
+  K02118 = "V/A-type H+/Na+-transporting ATPase subunit B",
+  K02885 = "large subunit ribosomal protein L19e",
+  K00262 = "glutamate dehydrogenase (NADP+)",
+  K02912 = "large subunit ribosomal protein L32e",
+  K00240 = "succinate dehydrogenase iron-sulfur subunit",
+  K00525 = "ribonucleoside-diphosphate reductase alpha chain",
+  K00239 = "succinate dehydrogenase flavoprotein",
+  K02437 = "glycine cleavage system H protein",
+  K00283 = "glycine cleavage system P protein subunit 2",
+  K06215 = "pyridoxal 5'-phosphate synthase pdxS subunit",
+  K00249 = "acd; acyl-CoA dehydrogenase",
+  K11785 = "5,8-dihydroxy-2-naphthoate synthase",
+  K06928 = "nucleoside-triphosphatase",
+  K15016 = "enoyl-CoA hydratase",
+  K00615 = "transketolase",
+  K00074 = "3-hydroxybutyryl-CoA dehydrogenase",
+  K05309 = "microsomal prostaglandin-E synthase",
+  K00600 = "glycine hydroxymethyltransferase",
+  K00174 = "2-oxoglutarate/2-oxoacid ferredoxin oxidoreductase subunit alpha",
+  K00955 = "bifunctional enzyme CysN/CysC",
+  K02929 = "large subunit ribosomal protein L44e",
+  K00789 = "S-adenosylmethionine synthetase",
+  K11782 = "chorismate dehydratase",
+  K00957 = "sulfate adenylyltransferase subunit 2",
+  K00626 = "acetyl-CoA C-acetyltransferase",
+  K00560 = "thymidylate synthase",
+  K04802 = "proliferating cell nuclear antigen",
+  K03110 = "fused signal recognition particle receptor",
+  K00759 = "adenine phosphoribosyltransferase",
+  K01689 = "enolase 1/2/3",
+  K09903 = "uridylate kinase",
+  K02122 = "V/A-type H+/Na+-transporting ATPase subunit F"
+)
+
+# ko_dict.thala <- c(
+#   # common
+#   "K04802" = "proliferating cell nuclear antigen",
+#   "K04641" = "rhodopsin",
+#   "K00626" = "acetyl-CoA C-acetyltransferase",
+#   "K03237" = "translation initiation factor 2 subunit 1",
+# 
+#   # GCA_8985.1
+#   "K04043" = "molecular chaperone DnaK",
+#   "K03124" = "transcription initiation factor TFIIB",
+#   "K02121" = "V/A-type H+/Na+-transporting ATPase subunit E",
+#   "K03120" = "TATA-box-binding protein (TBP)",
+#   "K00024" = "malate dehydrogenase",
+#   "K02124" = "V/A-type H+/Na+-transporting ATPase subunit K",
+#   "K00252" = "glutaryl-CoA dehydrogenase",
+#   "K02119" = "V/A-type H+/Na+-transporting ATPase subunit C",
+#   "K00382" = "dihydrolipoyl dehydrogenase",
+#   "K01902" = "succinyl-CoA synthetase alpha subunit",
+#   "K02991" = "ribosomal protein S6e",
+#   "K01915" = "glutamine synthetase",
+#   "K04515" = "calcium/calmodulin-dependent protein kinase II",
+#   "K03671" = "thioredoxin",
+#   "K00128" = "aldehyde dehydrogenase (NAD+)",
+#   "K13525" = "transitional endoplasmic reticulum ATPase",
+#   "K02977" = "ubiquitin-small subunit ribosomal protein S27Ae",
+#   "K13732" = "fibronectin-binding protein A",
+#   "K13733" = "fibronectin-binding protein B",
+#   "K02117" = "V/A-type H+/Na+-transporting ATPase subunit A",
+#   "K02927" = "ubiquitin-large subunit ribosomal protein L40e",
+#   "K01903" = "succinyl-CoA synthetase beta subunit",
+#   "K00175" = "2-oxoglutarate ferredoxin oxidoreductase subunit beta",
+#   "K03058" = "RNA polymerase subunit N",
+#   "K02120" = "V/A-type H+/Na+-transporting ATPase subunit D",
+#   "K15512" = "benzoyl-CoA 2,3-epoxidase subunit B",
+#   "K03120" = "transcription initiation factor TFIID TATA-box-binding protein",
+#   "K02991" = "small subunit ribosomal protein S6e",
+#   
+# 
+# 
+#   # GCA_775.1
+#   "K00299" = "FMN reductase",
+#   "K02929" = "ribosomal protein L44e",
+#   "K00957" = "sulfate adenylyltransferase subunit 2",
+#   "K01424" = "L-asparaginase",
+#   "K01641" = "hydroxymethylglutaryl-CoA synthase",
+#   "K00955" = "bifunctional enzyme CysN/CysC",
+#   "K00956" = "sulfate adenylyltransferase subunit 1",
+#   "K02343" = "DNA polymerase III subunit gamma/tau",
+#   "K01784" = "UDP-glucose 4-epimerase",
+#   "K00632" = "acetyl-CoA acyltransferase",
+#   "K11782" = "chorismate dehydratase",
+#   "K00789" = "S-adenosylmethionine synthetase",
+#   "K00174" = "2-oxoglutarate ferredoxin oxidoreductase subunit alpha",
+#   "K00253" = "isovaleryl-CoA dehydrogenase",
+#   "K01692" = "enoyl-CoA hydratase",
+#   "K13421" = "uridine monophosphate synthetase",
+#   "K03234" = "elongation factor 2",
+#   "K06928" = "nucleoside-triphosphatase",
+#   "K02437" = "glycine cleavage system H protein",
+#   "K00074" = "3-hydroxybutyryl-CoA dehydrogenase",
+#   "K08187" = "MCT family transporter SLC16A10",
+#   "K00600" = "glycine hydroxymethyltransferase",
+#   "K00059" = "3-oxoacyl-ACP reductase",
+#   "K00615" = "transketolase",
+#   "K11785" = "5,8-dihydroxy-2-naphthoate synthase",
+#   "K00239" = "succinate dehydrogenase flavoprotein subunit"
+# )
+
+
+ko_label_color.thala <- case_when(
+  names(ko_dict.thala) %in% only.985    ~ "red",
+  names(ko_dict.thala) %in% only.775 ~ "blue",
+  TRUE                         ~ "black"
+)
+
+ko_labels_colored.thala <- setNames(
+  paste0(
+    "<span style='color:", ko_label_color.thala, "'>",
+    ko_dict.thala,
+    "</span>"
+  ),
+  names(ko_dict.thala)
+)
+
+thala.bubble <- thala.ko.find.filtered %>%
+  filter(ko %in% join.kos) %>%
+group_by(sample, ko, genome, site, season, day) %>%
+  summarise(sum_perc = sum(perc), .groups = "drop") %>%
+  group_by(site, ko, genome, season) %>%
+  summarise(avg = mean(sum_perc),
+            sd = sd(sum_perc), .groups = "drop") %>%
+ggplot(aes(x = factor(ko, levels = join.kos),
+           y = factor(season, levels = c("Winter", "Spring", "Summer")),
+           size = avg)) +
+  geom_point(aes(fill = site), shape = 21, color = "black", stroke = 0.6, alpha = 0.8) +
+  scale_x_discrete(
+  labels = ko_labels_colored.thala
+  #expand = c(0, 0)
+) +
+  scale_y_discrete(expand = c(0, 1)) +
+coord_flip(clip = "off") +
+  facet_wrap(~genome+site, ncol = 4) +
+theme(
+  panel.spacing = unit(0.10, "lines"),
+  axis.text.y = ggtext::element_markdown(size = 7),
+  #panel.grid.major.y = element_blank(),
+  legend.position = "bottom"
+  #plot.margin = margin(5,5,5,5),
+) +
+  labs(
+    x = "KOs",
+    y = "Season",
+    size = "Average (%)",
+    title = "Thalassarchaeaceae  - Top 30 KO terms",
+    subtitle = "Bubble plot by day"
+  )
+
+thala.bubble 
+
+
+  
+```
+
+### Porticoccaceae
+
+```{r GCA_018607525.1-summer-top30kos }
+#| fig-width: 10
+#| fig-height: 9
+#| warning: false
+#| echo: false
+# 3. Remove them while keeping full original structure
+porti.ko.find.filtered <- ko.individual %>%
+  filter(genome %in% c('GCA_018607525.1', 'GCA_024644585.1')) %>%
+  select(-description)
+
+# annotate ko
+ko_vec <- porti.ko.find.filtered %>%
+  distinct(kegg_ko) %>%
+  pull(kegg_ko)
+
+anno <- bitr_kegg(
+  ko_vec,
+  fromType = "kegg",
+  toType   = "Path",
+  organism = "ko"
+) |>
+  left_join(kegg_data$KEGGPATHID2NAME, by = c("Path" = "from")) %>%
+  rename(kegg_ko = 'kegg',
+         description = 'to')
+
+# Add annotation
+porti.ko.find.filtered <- porti.ko.find.filtered %>%
+  left_join(anno, join_by(kegg_ko))
+
+porti.ko.find.filtered <- porti.ko.find.filtered %>%
+  mutate(
+    description = ifelse(kegg_ko == "K04641", "rhodopsin", description)
+  ) %>%
+  filter(!is.na(description))
+
+top30_ko_525.coast <- porti.ko.find.filtered %>%
+  filter(genome == 'GCA_018607525.1') %>%
+  filter(season == "Summer", site == 'Coast') %>%
+  group_by(sample, kegg_ko) %>%
+  summarise(sum_perc = sum(perc), .groups = "drop") %>%
+  group_by(kegg_ko) %>%
+  summarise(avg = mean(sum_perc), .groups = "drop") %>%
+  slice_max(avg, n = 30) %>%
+  pull(kegg_ko)
+top30_ko_525.offshore <- porti.ko.find.filtered %>%
+  filter(genome == 'GCA_018607525.1') %>%
+  filter(season == "Summer", site == 'Offshore') %>%
+  group_by(sample, kegg_ko) %>%
+  summarise(sum_perc = sum(perc), .groups = "drop") %>%
+  group_by(kegg_ko) %>%
+  summarise(avg = mean(sum_perc), .groups = "drop") %>%
+  slice_max(avg, n = 30) %>%
+  pull(kegg_ko)
+
+join.kos.525 <- unique(c(top30_ko_525.coast, top30_ko_525.offshore))
+
+same.525 <- intersect(top30_ko_525.coast, top30_ko_525.offshore)
+offshore.525 <- setdiff(top30_ko_525.offshore, top30_ko_525.coast)
+coast.525 <- setdiff(top30_ko_525.coast, top30_ko_525.offshore)
+
+ko_dict_525 <- c(
+  # Only Offshore
+  "K02988" = "ribosomal protein S5",
+  "K02203" = "phosphoserine",
+  "K00001" = "alcohol dehydrogenase",
+  "K02890" = "ribosomal protein L22",
+  "K00024" = "malate dehydrogenase",
+  "K01962" = "acetyl-CoA carboxylase",
+  "K00241" = "succinate dehydrogenase",
+
+  # Only Coast
+  "K00940" = "nucleoside-diphosphate kinase",
+  "K00239" = "succinate dehydrogenase",
+  "K04487" = "cysteine desulfurase",
+  "K04043" = "molecular chaperone DnaK",
+  "K00059" = "3-oxoacyl-ACP reductase",
+  "K04079" = "molecular chaperone Hsp90",
+  "K04641" = "rhodopsin",
+  
+  # Shared
+  "K00626" = "acetyl-CoA C-acetyltransferase",
+  "K04077" = "chaperonin GroEL",
+  "K00031" = "isocitrate dehydrogenase",
+  "K00134" = "glyceraldehyde-3-phosphate dehydrogenase",
+  "K00948" = "ribose-phosphate pyrophosphokinase",
+  "K02110" = "ATP synthase subunit c",
+  "K02109" = "ATP synthase subunit b",
+  "K01915" = "glutamine synthetase",
+  "K02115" = "ATP synthase subunit γ",
+  "K02113" = "ATP synthase subunit δ",
+  "K02111" = "ATP synthase subunit α",
+  "K00600" = "serine hydroxymethyltransferase",
+  "K00412" = "cytochrome b (complex III)",
+  "K00411" = "petA – Rieske iron-sulfur protein",
+  "K02437" = "gcvH – glycine cleavage H protein",
+  "K02112" = "ATP synthase subunit β",
+  "K01803" = "triosephosphate isomerase",
+  "K02965" = "ribosomal protein S19",
+  "K00831" = "phosphoserine aminotransferase",
+  "K00163" = "pyruvate dehydrogenase E1",
+  "K02982" = "ribosomal protein S3",
+  "K00873" = "pyruvate kinase",
+  "K00053" = "ketol-acid reductoisomerase"
+)
+
+# For the function shared on the coast there is an overall decrease of investment
+# but 3-oxoacyl-ACP reductase, rhodipsin, glyceraldehyde-3-phosphate dehydrogenase and acetyl-CoA C-acetyltransferase
+# showed an increase in investment towards the last day when thodopsin has its peak, DOC and Chla are lowest in the environment
+# For the offshore functions, there is a decrease in the day 5 corrisponding also in a decrease of overall transcription of this genome
+# but many functions get increase investment as phosphoserine, malate dehydrogenase, alcohol dehydrogenase, acetyl-CoA carboxylase and succinate dehydrogenase
+# plus petA, gcvHm, cytochrome b, serine hydroxymethyltransferase and some of the ATP sythase with even a decrease in rhodopsin. 
+# when the overall transcription goes up again on day 7, all functions go back to the same level as before day 5.
+
+ko_label_color.525 <- case_when(
+  names(ko_dict_525) %in% coast.525    ~ "red",
+  names(ko_dict_525) %in% offshore.525 ~ "blue",
+  TRUE                         ~ "black"
+)
+
+ko_labels_colored.525 <- setNames(
+  paste0(
+    "<span style='color:", ko_label_color.525, "'>",
+    ko_dict_525,
+    "</span>"
+  ),
+  names(ko_dict_525)
+)
+
+porti1 <- porti.ko.find.filtered %>%
+  filter(season == "Summer", kegg_ko %in% join.kos.525,
+         genome == 'GCA_018607525.1') %>%
+  group_by(sample, kegg_ko, genome, site) %>%
+  summarise(sum_perc = sum(perc), .groups = "drop") %>%
+  group_by(site, kegg_ko, genome) %>%
+  summarise(avg = mean(sum_perc),
+            sd = sd(sum_perc), .groups = "drop",) %>%
+  ggplot(aes(x = factor(kegg_ko, levels = join.kos.525), y = avg)) +
+  geom_errorbar(aes(ymin = avg - sd, ymax = avg + sd), width = 0.3) +
+  geom_col(position = "dodge") +
+  facet_wrap(~site) +
+  coord_flip() + 
+  scale_x_discrete(labels = ko_labels_colored.525) +
+  theme(axis.text.y = ggtext::element_markdown(size = 10)) +
+  labs(
+    x = 'KOs',
+    y = 'Average (%)',
+    title = "GCA_018607525.1, Summer - Top 30 KO terms."
+  ) +
+  plot_annotation(subtitle = "Blue=Offshore unique, Red=Coast unique")
+
+porti.bubble.1 <- porti.ko.find.filtered %>%
+  filter(season == "Summer", kegg_ko %in% join.kos.525,
+         genome == 'GCA_018607525.1') %>%
+group_by(sample, kegg_ko, genome, site, day) %>%
+  summarise(sum_perc = sum(perc), .groups = "drop") %>%
+  group_by(site, kegg_ko, genome, day) %>%
+  summarise(avg = mean(sum_perc),
+            sd = sd(sum_perc), .groups = "drop") %>%
+ggplot(aes(x = factor(kegg_ko, levels = join.kos.525),
+           y = day,
+           size = avg)) +
+  facet_wrap(~site) +
+  geom_point(aes(fill = site), shape = 21, color = "black", stroke = 0.6, alpha = 0.8) +
+  scale_x_discrete(
+  labels = ko_labels_colored.525
+  #expand = c(0, 0)
+  ) +
+  scale_y_discrete(expand = c(0, 1)) +
+  coord_flip(clip = "off") +
+  theme(
+    panel.spacing = unit(0.10, "lines"),
+    axis.text.y = ggtext::element_markdown(size = 7)
+#   #panel.grid.major.y = element_blank(),
+#   legend.position = "bottom",
+#   #plot.margin = margin(5,5,5,5),
+    #aspect.ratio = 2
+    ) +
+  labs(
+    x = "KOs",
+    y = "Day",
+    size = "Average (%)",
+    title = "GCA_018607525.1, Summer"
+  )
+
+```
+
+```{r GCA_024644585.1-summer-top30kos}
+#| fig-width: 15
+#| fig-height: 7
+#| warning: false
+#| echo: false
+top30_ko_585.coast <- porti.ko.find.filtered %>%
+  filter(genome == 'GCA_024644585.1') %>%
+  filter(season == "Summer", site == 'Coast') %>%
+  group_by(sample, kegg_ko) %>%
+  summarise(sum_perc = sum(perc), .groups = "drop") %>%
+  group_by(kegg_ko) %>%
+  summarise(avg = mean(sum_perc), .groups = "drop") %>%
+  slice_max(avg, n = 30) %>%
+  pull(kegg_ko)
+
+top30_ko_585.offshore <- porti.ko.find.filtered %>%
+  filter(genome == 'GCA_024644585.1') %>%
+  filter(season == "Summer", site == 'Offshore') %>%
+  group_by(sample, kegg_ko) %>%
+  summarise(sum_perc = sum(perc), .groups = "drop") %>%
+  group_by(kegg_ko) %>%
+  summarise(avg = mean(sum_perc), .groups = "drop") %>%
+  slice_max(avg, n = 30) %>%
+  pull(kegg_ko)
+
+join.kos <- unique(c(top30_ko_585.coast, top30_ko_585.offshore))
+
+same <- intersect(top30_ko_585.coast, top30_ko_585.offshore)
+offshore <- setdiff(top30_ko_585.offshore, top30_ko_585.coast)
+coast <- setdiff(top30_ko_585.coast, top30_ko_585.offshore)
+
+
+ko_dict_585 <- c(
+  # Only Offshore
+  "K00242" = "succinate dehydrogenase membrane subunit",
+  "K02886" = "ribosomal protein L2",
+  "K03076" = "preprotein translocase subunit SecY",
+  "K02863" = "ribosomal protein L1",
+  "K00241" = "succinate dehydrogenase cytochrome b subunit",
+  "K02874" = "ribosomal protein L14",
+  "K01902" = "succinyl-CoA synthetase alpha subunit",
+  "K04487" = "cysteine desulfurase",
+  "K00658" = "2-oxoglutarate dehydrogenase E2 component",
+  "K01803" = "triosephosphate isomerase",
+  
+  # Only Coast
+  "K01689" = "enolase",
+  "K00873" = "pyruvate kinase",
+  "K00600" = "glycine hydroxymethyltransferase",
+  "K04043" = "molecular chaperone DnaK",
+  "K01782" = "multifunctional fatty acid beta-oxidation enzyme FadJ",
+  "K01825" = "multifunctional fatty acid beta-oxidation enzyme FadB",
+  "K00059" = "3-oxoacyl-ACP reductase",
+  "K04079" = "molecular chaperone HtpG",
+  "K04077" = "chaperonin GroEL",
+  "K04641" = "rhodopsin",
+  
+  # Shared
+  "K00626" = "acetyl-CoA C-acetyltransferase",
+  "K01915" = "glutamine synthetase",
+  "K00134" = "glyceraldehyde 3-phosphate dehydrogenase",
+  "K02935" = "ribosomal protein L7/L12",
+  "K00382" = "dihydrolipoyl dehydrogenase",
+  "K03073" = "preprotein translocase subunit SecE",
+  "K02358" = "elongation factor Tu",
+  "K00411" = "ubiquinol-cytochrome c reductase iron-sulfur subunit",
+  "K02864" = "ribosomal protein L10",
+  "K02992" = "ribosomal protein S7",
+  "K02950" = "ribosomal protein S12",
+  "K02887" = "ribosomal protein L20",
+  "K01903" = "succinyl-CoA synthetase beta subunit",
+  "K00412" = "ubiquinol-cytochrome c reductase cytochrome b subunit",
+  "K00163" = "pyruvate dehydrogenase E1 component",
+  "K02110" = "ATP synthase subunit c",
+  "K00940" = "nucleoside-diphosphate kinase",
+  "K02946" = "ribosomal protein S10",
+  "K02437" = "glycine cleavage system H protein",
+  "K09903" = "uridylate kinase"
+)
+  
+  
+# for genome 585.1 when rhodopsin goes up in the coast (both transcription level and investment within the genome), 
+# also acetyl-CoA C-acetyltransferase, multifunctional fatty acid beta-oxidation enzyme FadJ, multifunctional fatty acid beta-oxidation enzyme FadB and 3-oxoacyl-ACP reductase goes up
+# in the offshore it's more complex with a lot of variability but rhodopsin investment always low.
+
+
+
+ko_label_color <- case_when(
+  names(ko_dict_585) %in% coast    ~ "red",
+  names(ko_dict_585) %in% offshore ~ "blue",
+  TRUE                         ~ "black"
+)
+
+ko_labels_colored <- setNames(
+  paste0(
+    "<span style='color:", ko_label_color, "'>",
+    ko_dict_585,
+    "</span>"
+  ),
+  names(ko_dict_585)
+)
+
+porti2 <- porti.ko.find.filtered %>%
+  filter(season == "Summer", kegg_ko %in% join.kos,
+         genome == 'GCA_024644585.1') %>%
+  group_by(sample, kegg_ko, genome, site) %>%
+  summarise(sum_perc = sum(perc), .groups = "drop") %>%
+  group_by(site, kegg_ko, genome) %>%
+  summarise(avg = mean(sum_perc),
+            sd = sd(sum_perc), .groups = "drop",) %>%
+  ggplot(aes(x = factor(kegg_ko, levels = join.kos), y = avg)) +
+  geom_col(position = "dodge") +
+  geom_errorbar(aes(ymin = avg - sd, ymax = avg + sd), width = 0.3) +
+  facet_wrap(~site) +
+  coord_flip() + 
+  scale_x_discrete(labels = ko_labels_colored) +
+  theme(axis.text.y = ggtext::element_markdown(size = 10)) +
+  labs(
+    x = 'KOs',
+    y = 'Average (%)',
+    title = "GCA_024644585.1, Summer - Top 30 KO terms."
+  ) +
+  plot_annotation(subtitle = "Blue=Offshore unique, Red=Coast unique")
+
+
+
+porti.bubble.2 <- porti.ko.find.filtered %>%
+  filter(season == "Summer", kegg_ko %in% join.kos,
+         genome == 'GCA_024644585.1') %>%
+  group_by(sample, kegg_ko, genome, site, day) %>%
+  summarise(sum_perc = sum(perc), .groups = "drop") %>%
+  group_by(site, kegg_ko, genome, day) %>%
+  summarise(avg = mean(sum_perc),
+            sd = sd(sum_perc), .groups = "drop") %>%
+ggplot(aes(x = factor(kegg_ko, levels = join.kos),
+           y = day,
+           size = avg)) +
+  geom_point(aes(fill = site), shape = 21, color = "black", stroke = 0.6, alpha = 0.8) +
+  scale_x_discrete(
+  labels = ko_labels_colored
+  #expand = c(0, 0)
+) +
+  scale_y_discrete(expand = c(0, 1)) +
+  facet_wrap(~site) +
+coord_flip(clip = "off") +
+  theme(
+    panel.spacing = unit(0.10, "lines"),
+    axis.text.y = ggtext::element_markdown(size = 7)
+#   #panel.grid.major.y = element_blank(),
+#   legend.position = "bottom",
+#   #plot.margin = margin(5,5,5,5),
+    #aspect.ratio = 2
+    ) +
+  labs(
+    x = "KOs",
+    y = "Day",
+    size = "Average (%)",
+    title = "GCA_024644585.1, Summer"
+  )
+
+```
+
+```{r porti-bubble-visualization}
+#| warning: false
+#| echo: false
+#| fig-width: 14
+#| fig-height: 7
+(porti.bubble.1 + porti.bubble.2) +
+  plot_layout(guides = "collect") &
+  theme(legend.position = "bottom")
+```
+
+```{r porti-line-plot}
+#| fig-width: 10
+#| fig-height: 10
+porti.line.df <- individual.abundance %>%
+  filter(
+    site == 'Coast',
+    season == "Summer",
+    genome %in% (top30genomes.prd.abundance %>% distinct(genome) %>% pull(genome)),
+    annotation == 'rhodopsin',
+    family == 'Porticoccaceae',
+    !genome %in% c('GCA_038143955.1', 'GCA_943846655.1')  # your excluded ones
+  ) %>%
+  distinct(day, sample, site, season, family, genome, perc) %>%
+  mutate(genome_family = paste0(genome, '_', family)) %>%
+  group_by(day, sample, site, season, genome_family) %>%
+  summarise(rhodopsin = sum(perc), .groups = 'drop') %>%
+  left_join(metadata %>% select(sample, doc, chla_tot, pa), by = "sample") %>%
+  mutate(across(c(rhodopsin, doc, chla_tot), ~ scale(.)[,1])) %>%
+  pivot_longer(cols = c(rhodopsin, doc, chla_tot), names_to = "variable")
+
+porti.line <- ggplot(porti.line.df, aes(
+  x = as.numeric(day),
+  y = value,
+  color = genome_family,
+  linetype = variable
+)) +
+  geom_line(linewidth = 1) +
+  scale_linetype_manual(
+    values = c(
+      "rhodopsin" = "solid",
+      "doc" = "dashed",
+      "chla_tot" = "dotted"
+    )
+  ) +
+  scale_color_manual(values = c("#000000", "#E69F00", "#56B4E9")) +
+  theme_bw() +
+  facet_wrap(~season+site) +
+  labs(
+    x = "Day",
+    y = "Scaled value",
+    color = "Genome",
+    linetype = "Variable"
+  ) +
+  theme(
+    strip.text = element_text(size = 12),
+    legend.position = "right"
+  )  +
+  labs(
+    title = 'Porticoccaceae '
+  )
+
+```
+
+### Pelagibacteraceae
+
+I am digging into GCA_028226535.1 and GCA_028097645.1
+
+```{r GCA_028226535.1-summer-top30kos }
+#| fig-width: 10
+#| warning: false
+#| echo: false
+# 3. Remove them while keeping full original structure
+pela.ko.find.filtered <- ko.individual %>%
+  filter(genome %in% c('GCA_028226535.1', 'GCA_028097645.1')) %>%
+  select(-description)
+
+# annotate ko
+ko_vec <- pela.ko.find.filtered %>%
+  distinct(kegg_ko) %>%
+  pull(kegg_ko)
+
+anno <- bitr_kegg(
+  ko_vec,
+  fromType = "kegg",
+  toType   = "Path",
+  organism = "ko"
+) |>
+  left_join(kegg_data$KEGGPATHID2NAME, by = c("Path" = "from")) %>%
+  rename(kegg_ko = 'kegg',
+         description = 'to')
+
+# Add annotation
+pela.ko.find.filtered <- pela.ko.find.filtered %>%
+  left_join(anno, join_by(kegg_ko))
+
+pela.ko.find.filtered <- pela.ko.find.filtered %>%
+  mutate(
+    description = ifelse(kegg_ko == "K04641", "rhodopsin", description)
+  ) %>%
+  filter(!is.na(description))
+
+top30_ko_535.coast <- pela.ko.find.filtered %>%
+  filter(genome == 'GCA_028226535.1') %>%
+  filter(season == "Summer", site == 'Coast') %>%
+  group_by(sample, kegg_ko) %>%
+  summarise(sum_perc = sum(perc), .groups = "drop") %>%
+  group_by(kegg_ko) %>%
+  summarise(avg = mean(sum_perc), .groups = "drop") %>%
+  slice_max(avg, n = 30) %>%
+  pull(kegg_ko)
+
+top30_ko_535.offshore <- pela.ko.find.filtered %>%
+  filter(genome == 'GCA_028226535.1') %>%
+  filter(season == "Summer", site == 'Offshore') %>%
+  group_by(sample, kegg_ko) %>%
+  summarise(sum_perc = sum(perc), .groups = "drop") %>%
+  group_by(kegg_ko) %>%
+  summarise(avg = mean(sum_perc), .groups = "drop") %>%
+  slice_max(avg, n = 30) %>%
+  pull(kegg_ko)
+
+join.kos.535 <- unique(c(top30_ko_535.coast, top30_ko_535.offshore))
+
+same.535 <- intersect(top30_ko_535.coast, top30_ko_535.offshore)
+offshore.535 <- setdiff(top30_ko_535.offshore, top30_ko_535.coast)
+coast.535 <- setdiff(top30_ko_535.coast, top30_ko_535.offshore)
+
+ko_dict.535 <- c(
+  "K00128" = "aldehyde dehydrogenase (NAD+)",
+  "K01915" = "glutamine synthetase",
+  "K04077" = "chaperonin GroEL",
+  "K00411" = "ubiquinol-cytochrome c reductase iron-sulfur subunit",
+  "K00605" = "glycine cleavage system T protein",
+  "K00395" = "adenylylsulfate reductase subunit B",
+  "K04641" = "rhodopsin",
+  "K13953" = "alcohol dehydrogenase (propanol-preferring)",
+  "K01999" = "branched-chain amino acid transport system substrate-binding protein",
+  "K22082" = "methylamine---glutamate N-methyltransferase subunit B",
+  "K00053" = "ketol-acid reductoisomerase",
+  "K02437" = "glycine cleavage system H protein",
+  "K00394" = "adenylylsulfate reductase subunit A",
+  "K00001" = "alcohol dehydrogenase",
+  "K22083" = "methylamine---glutamate N-methyltransferase subunit C",
+  "K02002" = "glycine betaine/proline transport system substrate-binding protein",
+  "K00413" = "ubiquinol-cytochrome c reductase cytochrome c1 subunit",
+  "K00031" = "isocitrate dehydrogenase",
+  "K01653" = "acetolactate synthase small subunit",
+  "K00382" = "dihydrolipoyl dehydrogenase",
+  "K00817" = "histidinol-phosphate aminotransferase",
+  "K08738" = "cytochrome c",
+  "K01652" = "acetolactate synthase large subunit",
+  "K00658" = "2-oxoglutarate dehydrogenase E2 component",
+  "K01760" = "cysteine-S-conjugate beta-lyase",
+  "K00077" = "2-dehydropantoate 2-reductase",
+  "K00135" = "succinate-semialdehyde dehydrogenase",
+  "K01658" = "anthranilate synthase component II",
+  "K01895" = "acetyl-CoA synthetase",
+  "K00090" = "glyoxylate/hydroxypyruvate/2-ketogluconate reductase",
+  "K01496" = "phosphoribosyl-AMP cyclohydrolase",
+  "K11755" = "phosphoribosyl-AMP cyclohydrolase / phosphoribosyl-ATP pyrophosphohydrolase",
+  "K00088" = "IMP dehydrogenase",
+  "K01623" = "fructose-bisphosphate aldolase (class I)",
+  "K00058" = "D-3-phosphoglycerate dehydrogenase",
+  "K00412" = "ubiquinol-cytochrome c reductase cytochrome b subunit",
+  "K00018" = "glycerate dehydrogenase",
+  "K04043" = "molecular chaperone DnaK",
+  "K00812" = "aspartate aminotransferase",
+  "K16845" = "(2R)-sulfolactate sulfo-lyase subunit alpha",
+  "K01826" = "5-carboxymethyl-2-hydroxymuconate isomerase",
+  "K00208" = "enoyl-ACP reductase I"
+)
+
+ko_label_color.535 <- case_when(
+  names(ko_dict.535) %in% coast.535    ~ "red",
+  names(ko_dict.535) %in% offshore.535 ~ "blue",
+  TRUE                         ~ "black"
+)
+
+ko_labels_colored.535 <- setNames(
+  paste0(
+    "<span style='color:", ko_label_color.535, "'>",
+    ko_dict.535,
+    "</span>"
+  ),
+  names(ko_dict.535)
+)
+
+pela1 <- pela.ko.find.filtered %>%
+  filter(season == "Summer", kegg_ko %in% join.kos.535,
+         genome == 'GCA_028226535.1') %>%
+  group_by(sample, kegg_ko, genome, site) %>%
+  summarise(sum_perc = sum(perc), .groups = "drop") %>%
+  group_by(site, kegg_ko, genome) %>%
+  summarise(avg = mean(sum_perc),
+            sd = sd(sum_perc), .groups = "drop",) %>%
+  ggplot(aes(x = factor(kegg_ko, levels = join.kos.535), y = avg)) +
+  geom_errorbar(aes(ymin = avg - sd, ymax = avg + sd), width = 0.3) +
+  geom_col(position = "dodge") +
+  facet_wrap(~site) +
+  coord_flip() + 
+  scale_x_discrete(labels = ko_labels_colored.535) +
+  theme(axis.text.y = ggtext::element_markdown(size = 10)) +
+  labs(
+    x = 'KOs',
+    y = 'Average (%)',
+    title = "GCA_028226535.1, Summer - Top 30 KO terms."
+  ) +
+  plot_annotation(subtitle = "Blue=Offshore unique, Red=Coast unique")
+
+pela.bubble.1 <- pela.ko.find.filtered %>%
+  filter(season == "Summer", kegg_ko %in% join.kos.535,
+         genome == 'GCA_028226535.1') %>%
+group_by(sample, kegg_ko, genome, site, day) %>%
+  summarise(sum_perc = sum(perc), .groups = "drop") %>%
+  group_by(site, kegg_ko, genome, day) %>%
+  summarise(avg = mean(sum_perc),
+            sd = sd(sum_perc), .groups = "drop") %>%
+ggplot(aes(x = factor(kegg_ko, levels = join.kos.535),
+           y = day,
+           size = avg)) +
+  facet_wrap(~site) +
+  geom_point(aes(fill = site), shape = 21, color = "black", stroke = 0.6, alpha = 0.8) +
+  scale_x_discrete(
+  labels = ko_labels_colored.535
+  #expand = c(0, 0)
+  ) +
+  scale_y_discrete(expand = c(0, 1)) +
+  coord_flip(clip = "off") +
+  theme(
+    panel.spacing = unit(0.10, "lines"),
+    axis.text.y = ggtext::element_markdown(size = 7)
+#   #panel.grid.major.y = element_blank(),
+#   legend.position = "bottom",
+#   #plot.margin = margin(5,5,5,5),
+    #aspect.ratio = 2
+    ) +
+  labs(
+    x = "KOs",
+    y = "Day",
+    size = "Average (%)",
+    title = "GCA_028226535.1, Summer"
+  )
+```
+
+```{r GCA_028097645.1-summer-top30kos }
+#| fig-width: 10
+#| warning: false
+#| echo: false
+top30_ko_645.coast <- pela.ko.find.filtered %>%
+  filter(genome == 'GCA_028097645.1') %>%
+  filter(season == "Summer", site == 'Coast') %>%
+  group_by(sample, kegg_ko) %>%
+  summarise(sum_perc = sum(perc), .groups = "drop") %>%
+  group_by(kegg_ko) %>%
+  summarise(avg = mean(sum_perc), .groups = "drop") %>%
+  slice_max(avg, n = 30) %>%
+  pull(kegg_ko)
+
+top30_ko_645.offshore <- pela.ko.find.filtered %>%
+  filter(genome == 'GCA_028097645.1') %>%
+  filter(season == "Summer", site == 'Offshore') %>%
+  group_by(sample, kegg_ko) %>%
+  summarise(sum_perc = sum(perc), .groups = "drop") %>%
+  group_by(kegg_ko) %>%
+  summarise(avg = mean(sum_perc), .groups = "drop") %>%
+  slice_max(avg, n = 30) %>%
+  pull(kegg_ko)
+
+join.kos.645 <- unique(c(top30_ko_645.coast, top30_ko_645.offshore))
+
+same.645 <- intersect(top30_ko_645.coast, top30_ko_645.offshore)
+offshore.645 <- setdiff(top30_ko_645.offshore, top30_ko_645.coast)
+coast.645 <- setdiff(top30_ko_645.coast, top30_ko_645.offshore)
+
+ko_dict.645 <- c(
+  "K08738" = "cytochrome c",
+  "K00128" = "aldehyde dehydrogenase (NAD+)",
+  "K00605" = "glycine cleavage system T protein",
+  "K00640" = "serine O-acetyltransferase",
+  "K00411" = "ubiquinol-cytochrome c reductase iron-sulfur subunit",
+  "K04641" = "rhodopsin",
+  "K02078" = "acyl carrier protein",
+  "K00024" = "malate dehydrogenase",
+  "K01713" = "cyclohexadienyl dehydratase",
+  "K00297" = "methylenetetrahydrofolate reductase",
+  "K00140" = "malonate-semialdehyde dehydrogenase",
+  "K02111" = "ATP synthase subunit alpha",
+  "K00133" = "aspartate-semialdehyde dehydrogenase",
+  "K01491" = "methylenetetrahydrofolate dehydrogenase / cyclohydrolase",
+  "K00382" = "dihydrolipoyl dehydrogenase",
+  "K02055" = "spermidine/putrescine transport system substrate-binding protein",
+  "K00001" = "alcohol dehydrogenase",
+  "K00826" = "branched-chain amino acid aminotransferase",
+  "K03941" = "NADH dehydrogenase Fe-S protein 8",
+  "K01703" = "3-isopropylmalate dehydratase large subunit",
+  "K00239" = "succinate dehydrogenase flavoprotein subunit",
+  "K00412" = "cytochrome b",
+  "K00812" = "aspartate aminotransferase",
+  "K00138" = "aldehyde dehydrogenase",
+  "K00948" = "ribose-phosphate pyrophosphokinase",
+  "K01586" = "diaminopimelate decarboxylase",
+  "K01903" = "succinyl-CoA synthetase beta subunit",
+  "K00266" = "glutamate synthase (NADPH) small chain",
+  "K00658" = "2-oxoglutarate dehydrogenase E2 component",
+  "K00928" = "aspartate kinase",
+  "K00241" = "succinate dehydrogenase cytochrome b subunit",
+  "K00940" = "nucleoside-diphosphate kinase",
+  "K03943" = "NADH dehydrogenase flavoprotein 2",
+  "K01902" = "succinyl-CoA synthetase alpha subunit",
+  "K00413" = "cytochrome c1",
+  "K03210" = "preprotein translocase subunit YajC",
+  "K03111" = "single-strand DNA-binding protein",
+  "K00355" = "NAD(P)H dehydrogenase (quinone)",
+  "K01826" = "5-carboxymethyl-2-hydroxymuconate isomerase",
+  "K21883" = "2-dehydro-3-deoxy-L-rhamnonate dehydrogenase",
+  "K01999" = "branched-chain amino acid transport system substrate-binding protein",
+  "K09969" = "general L-amino acid transport system substrate-binding protein"
+)
+
+ko_label_color.645 <- case_when(
+  names(ko_dict.645) %in% coast.645    ~ "red",
+  names(ko_dict.645) %in% offshore.645 ~ "blue",
+  TRUE                         ~ "black"
+)
+
+ko_labels_colored.645 <- setNames(
+  paste0(
+    "<span style='color:", ko_label_color.645, "'>",
+    ko_dict.645,
+    "</span>"
+  ),
+  names(ko_dict.645)
+)
+
+pela2 <- pela.ko.find.filtered %>%
+  filter(season == "Summer", kegg_ko %in% join.kos.645,
+         genome == 'GCA_028097645.1') %>%
+  group_by(sample, kegg_ko, genome, site) %>%
+  summarise(sum_perc = sum(perc), .groups = "drop") %>%
+  group_by(site, kegg_ko, genome) %>%
+  summarise(avg = mean(sum_perc),
+            sd = sd(sum_perc), .groups = "drop",) %>%
+  ggplot(aes(x = factor(kegg_ko, levels = join.kos.645), y = avg)) +
+  geom_errorbar(aes(ymin = avg - sd, ymax = avg + sd), width = 0.3) +
+  geom_col(position = "dodge") +
+  facet_wrap(~site) +
+  coord_flip() + 
+  scale_x_discrete(labels = ko_labels_colored.645) +
+  theme(axis.text.y = ggtext::element_markdown(size = 10)) +
+  labs(
+    x = 'KOs',
+    y = 'Average (%)',
+    title = "GCA_028097645.1, Summer - Top 30 KO terms."
+  ) +
+  plot_annotation(subtitle = "Blue=Offshore unique, Red=Coast unique")
+
+pela.bubble.2 <- pela.ko.find.filtered %>%
+  filter(season == "Summer", kegg_ko %in% join.kos.645,
+         genome == 'GCA_028097645.1') %>%
+group_by(sample, kegg_ko, genome, site, day) %>%
+  summarise(sum_perc = sum(perc), .groups = "drop") %>%
+  group_by(site, kegg_ko, genome, day) %>%
+  summarise(avg = mean(sum_perc),
+            sd = sd(sum_perc), .groups = "drop") %>%
+ggplot(aes(x = factor(kegg_ko, levels = join.kos.645),
+           y = day,
+           size = avg)) +
+  facet_wrap(~site) +
+  geom_point(aes(fill = site), shape = 21, color = "black", stroke = 0.6, alpha = 0.8) +
+  scale_x_discrete(
+  labels = ko_labels_colored.645
+  #expand = c(0, 0)
+  ) +
+  scale_y_discrete(expand = c(0, 1)) +
+  coord_flip(clip = "off") +
+  theme(
+    panel.spacing = unit(0.10, "lines"),
+    axis.text.y = ggtext::element_markdown(size = 7)
+#   #panel.grid.major.y = element_blank(),
+#   legend.position = "bottom",
+#   #plot.margin = margin(5,5,5,5),
+    #aspect.ratio = 2
+    ) +
+  labs(
+    x = "KOs",
+    y = "Day",
+    size = "Average (%)",
+    title = "GCA_028097645.1, Summer"
+  )
+
+```
+
+```{r pela-bubble-visualization}
+#| warning: false
+#| echo: false
+#| fig-width: 14
+#| fig-height: 7
+(pela.bubble.1 + pela.bubble.2) +
+  plot_layout(guides = "collect") &
+  theme(legend.position = "bottom")
+
+```
+
+### Other line plots
+
+```{r puni-line-plot}
+#| fig-width: 10
+#| fig-height: 10
+punice.line <- individual.abundance %>%
+  filter(
+    site == 'Coast',
+    season %in% c("Spring"),
+    #genome %in% (top30genomes.prd.abundance %>% distinct(genome) %>% pull(genome)),
+    genome %in% c('metabat2.225', 'GCA_943789275.1'),
+    annotation == 'rhodopsin'
+    #family == 'Puniceispirillaceae'
+  ) %>%
+  distinct(day, sample, site, season, family, genome, perc) %>%
+  mutate(genome_family = paste0(genome, '_', family)) %>%
+  group_by(day, sample, site, season, genome_family) %>%
+  summarise(rhodopsin = sum(perc), .groups = 'drop') %>%
+  left_join(metadata %>% select(sample, doc, chla_tot, pa), by = "sample") %>%
+  mutate(across(c(rhodopsin, doc, chla_tot), ~ scale(.)[,1])) %>%
+  pivot_longer(cols = c(rhodopsin, doc, chla_tot), names_to = "variable") %>%
+  ggplot(aes(
+    x = as.numeric(day),
+    y = value,
+    color = genome_family,
+    linetype = variable
+  )) +
+  geom_line(linewidth = 1) +
+  scale_linetype_manual(
+    values = c(
+      rhodopsin = "solid",
+      doc = "dashed",
+      chla_tot = "dotted"
+    )
+  ) +
+  scale_color_manual(values = c("#999999", "#F0E442", "#CCB974")) +
+  theme_bw() +
+  facet_wrap(~season+site) +
+  labs(
+    x = "Day",
+    y = "Scaled value",
+    color = "Genome",
+    linetype = "Variable"
+  ) +
+  theme(
+    strip.text = element_text(size = 10)
+  ) +
+  labs(
+    title = 'Puniceispirillaceae'
+  )
+```
+
+```{r posei-line-plot}
+#| fig-width: 10
+#| fig-height: 10
+posei.line <- individual.abundance %>%
+  filter(
+    site == 'Coast',
+    season == "Spring",
+    genome %in% (top30genomes.prd.abundance %>% distinct(genome) %>% pull(genome)),
+    !genome %in% c('GCA_913064995.1'),
+    annotation == 'rhodopsin',
+    family == 'Poseidoniaceae'
+  ) %>%
+  distinct(day, sample, site, season, family, genome, perc) %>%
+  mutate(genome_family = paste0(genome, '_', family)) %>%
+  group_by(day, sample, site, season, genome_family) %>%
+  summarise(rhodopsin = sum(perc), .groups = 'drop') %>%
+  left_join(metadata %>% select(sample, doc, chla_tot, pa), by = "sample") %>%
+  mutate(across(c(rhodopsin, doc, chla_tot), ~ scale(.)[,1])) %>%
+  pivot_longer(cols = c(rhodopsin, doc, chla_tot), names_to = "variable") %>%
+  ggplot(aes(
+    x = as.numeric(day),
+    y = value,
+    color = genome_family,
+    linetype = variable
+  )) +
+  facet_wrap(~season+site) +
+  geom_line(linewidth = 1) +
+  scale_linetype_manual(
+    values = c(
+      rhodopsin = "solid",
+      doc = "dashed",
+      chla_tot = "dotted"
+    )
+  ) +
+  scale_color_manual(values = c("#CC79A7", "#0072B2", "#D55E00", "#009E73")) +
+  theme_bw() +
+  labs(
+    x = "Day",
+    y = "Scaled value",
+    color = "Genome",
+    linetype = "Variable"
+  ) +
+  theme(
+    strip.text = element_text(size = 10)
+  )  +
+  labs(
+    title = 'Poseidoniaceae'
+  )
+```
+
+```{r suppl-fig4}
+#| fig-width: 10
+#| fig-height: 5
+punice.line + porti.line + 
+  plot_layout(guides = 'collect') +
+  plot_annotation(tag_levels = 'A')
+
+
+```

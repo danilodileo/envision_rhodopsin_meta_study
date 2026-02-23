@@ -1,0 +1,1641 @@
+---
+title: "untargeted-analysis-kofamscan"
+author: "[Danilo Di Leo](https://github.com/danilodileo)"
+date: today
+format:
+  html:
+    toc: true
+    toc-title: "Table of Contents"
+    toc-depth: 2
+    toc-location: left
+    number-sections: true
+    code-fold: true
+    code-summary: "Show Code"
+    fig-width: 6
+    fig-height: 4
+    highlight-style: github
+    self-contained: true  
+editor: visual
+---
+
+```{r setup}
+#| label: setup
+#| echo: false
+#| cache: true
+
+knitr::opts_chunk$set(echo = TRUE, fig.path='figures/', cache = TRUE, fig.width = 10)
+ggplot2::theme_set(ggplot2::theme_bw())
+```
+
+## Data preparation
+
+```{r libraries }
+#| label: libraries
+#| message: false
+#| cache: false
+#| include: false
+#| warning: false
+#| echo: false
+
+library(readr)
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(purrr)
+library(stringr)
+library(ggplot2)
+library(ggrepel)
+library(kfigr)
+library(knitr)
+library(DT)
+library(grateful)
+library(patchwork)
+library(broom)
+library(gt)
+library(tibble)
+library(corrr)
+library(forcats)
+library(shiny)
+library(grid)
+library(ggvenn)
+library(vegan)
+library(reshape2)
+library(ggsignif)
+library(readxl)
+library(ggcorrplot)
+library(FactoMineR)
+library(factoextra)
+library(missMDA)
+library(kableExtra) # For tables
+library(compositions) # For CLR transformation
+library(pheatmap)
+library(gridExtra)
+library(tidytext)  # per reorder_within() e scale_x_reordered()
+library(shadowtext)
+library(gt)
+library(reactable)
+library(clusterProfiler)
+library(pathview)
+library(ggtext)
+library(Hmisc)
+library(igraph)
+library(ggplotify)
+library("ComplexHeatmap")
+```
+
+```{r palette-and-constants}
+#| include: false
+#| warning: false
+#| echo: false
+# Colourblind palette
+cb_palette <- c(
+  "#332288", "#88CCEE", "#44AA99", "#117733", "#999933", "#DDCC77",
+  "#CCBB44", "#E69F00", "#CC6677", "#882255", "#AA4499", "#BBBBBB"
+)
+
+# sample order
+sample_order <- c(
+  "ENV1_D1_S3", "ENV1_D3_S3", "ENV1_D5_S3", "ENV1_D7_S3",
+  "ENV1_D1_S6", "ENV1_D3_S6", "ENV1_D5_S6", "ENV1_D7_S6",
+  "ENV2_D1_S3", "ENV2_D3_S3", "ENV2_D5_S3", "ENV2_D7_S3",
+  "ENV2_D1_S6", "ENV2_D3_S6", "ENV2_D5_S6", "ENV2_D7_S6",
+  "ENV3_D1_S3", "ENV3_D3_S3", "ENV3_D5_S3", "ENV3_D7_S3",
+  "ENV3_D1_S6", "ENV3_D3_S6", "ENV3_D5_S6", "ENV3_D7_S6"
+)
+
+# Motility
+che_system <- c(
+  "K03407","K03408","K03409","K03410","K03411","K00575","K03412",
+  "K13924","K03413","K03414","K03415"
+)
+
+mcps <- c(
+  "K03406","K05874","K05875","K05876","K05877",
+  "K03776","K06595"
+)
+
+flagella_typeIII <- c(
+  "K02411","K02412","K02413","K02418","K02419","K02420",
+  "K02421","K13820","K02400","K02401","K03516"
+)
+
+flagella_c_ring <- c(
+  "K02410","K02416","K02417"
+)
+
+flagella_rings <- c(
+  "K02409","K02394","K02386","K02393","K02415"
+)
+
+flagella_rod_hook <- c(
+  "K02408","K02414","K02387","K02388","K02389",
+  "K02391","K02392","K02395","K02390","K02396",
+  "K02397","K02399"
+)
+
+flagella_h_t_rings <- c(
+  "K24343","K24344","K09860","K24346","K21217","K21218"
+)
+
+flagella_filament <- c(
+  "K18475","K02406","K02407","K02422","K02423"
+)
+
+flagella_stator <- c(
+  "K02403","K02402","K02405","K02556","K02557","K10564","K10565"
+)
+
+flagella_regulation <- c(
+  "K10941","K10942","K10943","K02424","K02425","K13626","K02398",
+  "K06602","K06603","K06604","K02382","K02383",
+  "K02384","K02385","K06601","K02404","K04562"
+)
+
+archaeal_flagella <- c(
+  "K07324","K07325","K07822","K07327","K07328","K23986",
+  "K07329","K07330","K07331","K07332","K07333","K07991"
+)
+
+
+twitching_motility <- c(
+  "K02657","K02658","K02659","K02660","K02661",
+  "K06596","K02667","K02668","K02669","K02670"
+)
+
+chemosensory_pili <- c(
+  "K06596","K06597","K06598","K06599","K06600"
+)
+
+positive_phototaxis <- c(
+  "K11522","K11523","K11524","K11525","K11526"
+)
+
+typeIV_pilus_assembly <- c(
+  "K02650","K02652","K02653","K02654","K02656","K02666","K02665",
+  "K02664","K23985","K02663","K02662","K02676","K02671","K02672",
+  "K02673","K02674","K02675","K02655","K02651"
+)
+
+tad_pili_system <- c(
+  "K02278","K02279","K02280","K02281","K02282","K02283"
+)
+
+fimbrial_proteins <- c(
+  "K07345","K07346","K07347","K07348","K07349","K07350",
+  "K07351","K07352","K07353","K07354","K07355","K07356","K27078"
+)
+
+taxa <- c(
+  "Pelagibacteraceae","Porticoccaceae","Poseidoniaceae","Puniceispirillaceae","Thalassarchaeaceae", "Pseudothioglobaceae", "Flavobacteriaceae")
+```
+
+```{r read-data, cache.lazy=FALSE}
+#| label: read-data
+#| include: false
+#| warning: false
+#| echo: false
+
+# Load count table
+counts.rhodo.genomes <- read_tsv('./summary_tables/counts-rhodo-genomes-taxonomy-function.tsv.gz', show_col_types = FALSE)
+
+# transporters KO
+transporters <- read_tsv('./summary_tables/transporters.txt', show_col_types = FALSE, col_names = c("br", "ko")) %>%
+  mutate(ko = sub("^ko:", "", ko)) %>%
+  pull(ko)
+
+ko.annotation <- read_tsv('./summary_tables/kofam_annotation_top30genomes.tsv.gz',
+                          show_col_types = FALSE)
+```
+
+```{r filter-low-quality-genomes}
+#| include: false
+#| warning: false
+#| echo: false
+
+# low quality rhodopsins
+counts.rhodo.genomes <- counts.rhodo.genomes %>%
+  filter(annotation == 'rhodopsin') %>%
+group_by(genome, sample) %>%
+  summarise(sum_count = sum(count), .groups = 'drop') %>%
+  filter(sum_count > 4) %>%
+  group_by(genome) %>%
+  summarise(n_sample = n_distinct(sample), .groups = 'drop') %>%
+  filter(n_sample > 2) %>%
+  distinct(genome) %>%
+  inner_join(counts.rhodo.genomes, join_by(genome)) %>%
+  left_join(ko.annotation, join_by(orf)) %>%
+  mutate(
+   ko = case_when(
+     annotation == "rhodopsin" ~ "K04641",
+     !is.na(ko) & ko != "-" & ko != "" ~ ko,
+     TRUE ~ NA_character_
+   )
+ )
+#  filter(!is.na(ko))
+
+# low quality KOs
+# Create table for overall dataset KO
+# 1. Summarise per sample
+#df_sum.ko.counts <- counts.rhodo.genomes %>%
+#  group_by(sample, genome, ko) %>%
+#  summarise(sum = sum(count), .groups = "drop")
+
+# 2. Identify modules to REMOVE:
+#    low counts AND rare across samples
+#bad_ko.counts <- df_sum.ko.counts %>%
+#  group_by(genome, ko) %>%
+#  summarise(
+#    total_sum = sum(sum),
+#    max_sum = max(sum),
+#    n_samples = n(),
+#    .groups = "drop"
+#  ) %>%
+#  filter(total_sum < 5 & max_sum < 5 & n_samples < 3)
+
+# 3. Remove them while keeping full original structure
+# counts.rhodo.genomes <- counts.rhodo.genomes %>%
+#   semi_join(
+#     df_sum.ko.counts %>% anti_join(bad_ko.counts, by = c("genome", "ko")),
+#     by = c("sample", "genome", "ko")
+# )
+```
+
+```{r renormalized-tables }
+#| include: false
+#| warning: false
+#| echo: false
+# Individual normalization of rhodopsin-containig genomes
+individual.abundance <- counts.rhodo.genomes %>%
+  select(-tpm) %>%
+  group_by(sample, genome) %>%
+  mutate(r = count / length, perc = r / sum(r) * 100) %>%
+  ungroup() %>%
+  filter(!is.na(ko))
+
+# Family normalization of rhodopsin-containig genomes
+family.abundance <- counts.rhodo.genomes %>%
+  select(-tpm) %>%
+  group_by(sample, family) %>%
+  mutate(r = count / length, tpm = r / sum(r) * 1e6) %>%
+  ungroup()  %>%
+  filter(!is.na(ko))
+
+counts.rhodo.genomes <- counts.rhodo.genomes %>%
+  filter(!is.na(ko))
+```
+
+```{r other-variables}
+# Get top 30 genomes expressing most rhodopsin
+top30.rhodo.genomes <- counts.rhodo.genomes %>%
+  filter(annotation == 'rhodopsin') %>%
+  group_by(genome) %>%
+  summarise(rhodo_tpm = sum(tpm), .groups = 'drop') %>%
+  slice_max(rhodo_tpm, n = 30) %>%
+  pull(genome)
+
+dominance <- counts.rhodo.genomes %>%
+  group_by(genome, sample, site) %>%
+  summarise(sum_tpm = sum(tpm), .groups = 'drop') %>%
+  group_by(genome, site) %>%
+  summarise(avg = mean(sum_tpm), .groups = 'drop') %>%
+  pivot_wider(names_from = site, values_from = avg, values_fill = 0) %>%
+  mutate(
+    ratio = Coast / Offshore,
+    dominance = case_when(
+      ratio > 1 ~ "coast",
+      TRUE ~ "offshore"
+    )
+  ) %>%
+  left_join(counts.rhodo.genomes %>%
+              distinct(genome, family,genus), join_by(genome)) %>%
+  mutate(genome_family = paste0(genome, '_', family, '_', genus)) %>%
+  select(genome_family, dominance, genome)
+
+dominance.investment <- individual.abundance %>%
+  filter(annotation == 'rhodopsin') %>%
+  group_by(genome, sample, site) %>%
+  summarise(sum_tpm = sum(perc), .groups = 'drop') %>%
+  group_by(genome, site) %>%
+  summarise(avg = mean(sum_tpm), .groups = 'drop') %>%
+  pivot_wider(names_from = site, values_from = avg, values_fill = 0) %>%
+  mutate(
+    ratio = Coast / Offshore,
+    dominance_investment = case_when(
+      ratio > 1 ~ "coast",
+      TRUE ~ "offshore"
+    )
+  ) %>%
+  left_join(counts.rhodo.genomes %>%
+              distinct(genome, family, genus), join_by(genome)) %>%
+  mutate(genome_family = paste0(genome, '_', family, '_', genus)) %>%
+  select(genome_family, dominance_investment, genome)
+
+dominance.table <- dominance %>%
+  left_join(dominance.investment, join_by(genome_family,genome)) %>%
+  filter(genome %in% top30.rhodo.genomes)
+```
+
+## Enrichment analysis
+
+```{r enrichment-analysis-top-level}
+#| include: false
+#| warning: false
+#| echo: false
+
+# Create a matrix from ko.counts table (previous expanded for ko terms)
+matrix.ko <- counts.rhodo.genomes %>%
+  group_by(sample, ko) %>%
+  summarise(sum_tpm = sum(tpm), .groups = 'drop')%>%
+  pivot_wider(names_from = sample, values_from = sum_tpm, values_fill = 0) %>%
+  column_to_rownames("ko") %>%
+  as.matrix()
+
+target_expr <- matrix.ko["K04641", ]
+
+cors <- apply(matrix.ko, 1, function(x)
+  cor(x, target_expr, method = "spearman", use = "pairwise.complete.obs")
+)
+
+cors <- cors[names(cors) != "K04641"]
+cors <- cors[!is.na(cors)]
+cors <- cors[apply(matrix.ko[names(cors), ], 1, sd) > 0, drop = TRUE]
+
+gene_list <- sort(cors, decreasing = TRUE)
+
+gsea <- gseKEGG(geneList = gene_list, organism = "ko")
+
+
+# rhodopsin KO term K04641
+paths_table <- as.data.frame(gsea) |> 
+  dplyr::filter(p.adjust < 0.05,
+                Description != 'Coronavirus disease - COVID-19') |> 
+  dplyr::arrange(desc(NES))
+
+gsea@result <- gsea@result[ gsea@result$Description != "Coronavirus disease - COVID-19", ]
+
+paths_table <- paths_table |>
+  mutate(
+    n_core = sapply(strsplit(core_enrichment, "/"), length),
+    CoreGeneRatio = n_core / setSize
+  )
+
+dotplot(gsea, showCategory = 25, color = "NES") + plot_annotation(title = "KO enrichment analysis - overall patterns")
+
+```
+
+```{r family-level-enrichment-analysis }
+#| include: false
+#| warning: false
+#| echo: false
+#| fig-width: 15
+#| fig-height: 10
+# Download ko terms from KEGG
+kegg_data <- download_KEGG("ko")
+
+family.table.for.enrich <- family.abundance %>%
+  filter(family %in% c(taxa))
+
+
+split_data <- split(family.table.for.enrich, family.table.for.enrich$family)
+
+gsea_by_family <- lapply(split_data, function(df){
+
+  mat <- df %>%
+    group_by(sample, ko) %>%
+    summarise(sum_tpm = sum(tpm), .groups = "drop") %>%
+    pivot_wider(names_from = sample, values_from = sum_tpm, values_fill = 0) %>%
+    column_to_rownames("ko") %>%
+    as.matrix()
+
+  if(!"K04641" %in% rownames(mat)) return(NULL)
+
+  target_expr <- mat["K04641", ]
+
+  if(sd(target_expr) == 0) return(NULL)
+
+  cors <- apply(mat, 1, function(x)
+    cor(x, target_expr, method = "spearman", use = "pairwise.complete.obs")
+  )
+
+  cors <- cors[names(cors) != "K04641"]
+  cors <- cors[!is.na(cors)]
+  cors <- cors[apply(mat[names(cors), ], 1, sd) > 0]
+
+  if(length(cors) < 10) return(NULL)
+
+  gene_list <- sort(cors, decreasing = TRUE)
+
+  gsea <- GSEA(
+    geneList  = gene_list,
+    TERM2GENE = kegg_data$KEGGPATHID2EXTID,
+    TERM2NAME = kegg_data$KEGGPATHID2NAME,
+    pvalueCutoff = 1,
+    pAdjustMethod = "BH"
+  )
+
+  gsea
+})
+
+family_paths_table <- bind_rows(
+  lapply(gsea_by_family, function(x){
+    if(is.null(x)) return(NULL)
+    
+    as.data.frame(x) |>
+      #filter(p.adjust < 0.05) |>
+      arrange(desc(NES))
+  }),
+  .id = "family"
+)
+
+
+sig_labels <- family_paths_table %>%
+  mutate(sig = ifelse(p.adjust < 0.05, "*", "")) %>%
+  select(Description, family, sig) %>%
+  pivot_wider(names_from = family, values_from = sig, values_fill = "") %>%
+  column_to_rownames("Description") %>%
+  as.matrix()
+
+family_paths_table <- family_paths_table |>
+  mutate(
+    n_core = sapply(strsplit(core_enrichment, "/"), length),
+    CoreGeneRatio = n_core / setSize
+  )
+
+enrichment.fam <- family_paths_table %>%
+  select(Description, family, NES) %>%
+  pivot_wider(names_from = family, values_from = NES, values_fill = 0) %>%
+  column_to_rownames("Description")
+
+enrichment.fam.matrix <- as.matrix(enrichment.fam)
+pheatmap(
+  t(enrichment.fam.matrix),
+  color = colorRampPalette(c("blue", "white", "red"))(100),
+  cluster_rows = TRUE,
+  cluster_cols = TRUE,
+  scale = "none",
+  na_col = "grey",
+  fontsize_row = 10,
+  cellwidth = 10,
+  display_numbers = t(sig_labels),
+  treeheight_row = 4,
+  treeheight_col = 4,
+  cellheight = 10,
+  main = "EA top 6 family expressing rhodopsin"
+  #border_color = 'black'
+)
+```
+
+```{r genome-level-enrichment-analysis-pathways }
+#| warning: false
+#| echo: false
+#| fig-width: 17
+#| fig-height: 15
+# Rhodopsin abundance ranking heatmap (only 30)
+
+
+top30.genome.table.for.enrich <- individual.abundance %>%
+  filter(genome %in% top30.rhodo.genomes)
+
+split_data <- split(top30.genome.table.for.enrich, top30.genome.table.for.enrich$genome)
+
+top30.gsea_by_genome <- list()
+top30.gsea_by_genome <- lapply(split_data, function(df){
+
+  mat <- df %>%
+    group_by(sample, ko) %>%
+    summarise(sum_tpm = sum(perc), .groups = "drop") %>%
+    pivot_wider(names_from = sample, values_from = sum_tpm, values_fill = 0) %>%
+    column_to_rownames("ko") %>%
+    as.matrix()
+
+  if(!"K04641" %in% rownames(mat)) return(NULL)
+
+  target_expr <- mat["K04641", ]
+
+  if(sd(target_expr) == 0) return(NULL)
+
+  cors <- apply(mat, 1, function(x)
+    cor(x, target_expr, method = "spearman", use = "pairwise.complete.obs")
+  )
+
+  cors <- cors[names(cors) != "K04641"]
+  cors <- cors[!is.na(cors)]
+  cors <- cors[apply(mat[names(cors), ], 1, sd) > 0]
+
+  if(length(cors) < 10) return(NULL)
+
+  gene_list <- sort(cors, decreasing = TRUE)
+
+  gsea <- GSEA(
+    geneList  = gene_list,
+    TERM2GENE = kegg_data$KEGGPATHID2EXTID,
+    TERM2NAME = kegg_data$KEGGPATHID2NAME,
+    pvalueCutoff = 1,
+    pAdjustMethod = "BH"
+  )
+
+  gsea
+})
+
+top30.genome_paths_table <- bind_rows(
+  lapply(top30.gsea_by_genome, function(x){
+    if(is.null(x)) return(NULL)
+    
+    as.data.frame(x) |>
+      #filter(p.adjust < 0.1) |>
+      arrange(desc(NES))
+  }),
+  .id = "genome"
+)
+
+
+
+top30.genome_paths_table <- top30.genome_paths_table |>
+  mutate(
+    n_core = sapply(strsplit(core_enrichment, "/"), length),
+    CoreGeneRatio = n_core / setSize
+  )
+
+sig_table <- top30.genome_paths_table %>%
+  left_join(counts.rhodo.genomes %>%
+              distinct(family,genome, genus), join_by(genome)) %>%
+  mutate(
+    genome_family = paste0(genome, '_', family, '_', genus),
+    sig = case_when(
+      p.adjust < 0.001 ~ "***",
+      p.adjust < 0.01  ~ "**",
+      p.adjust < 0.05  ~ "*",
+      TRUE ~ ""
+    )
+  ) %>%
+  select(Description, genome_family, sig) %>%
+  pivot_wider(names_from = genome_family, values_from = sig, values_fill = "") %>%
+  column_to_rownames("Description")
+
+sig_matrix <- as.matrix(sig_table)
+
+top30.enrichment.genome <- top30.genome_paths_table %>%
+  left_join(counts.rhodo.genomes %>%
+              distinct(family,genome, genus), join_by(genome)) %>%
+  mutate(genome_family = paste0(genome, '_', family, '_', genus)) %>%
+  select(Description, genome_family, NES) %>%
+  pivot_wider(names_from = genome_family, values_from = NES, values_fill = 0) %>%
+  column_to_rownames("Description")
+
+top30enrichment.genome.matrix <- as.matrix(top30.enrichment.genome)
+max_abs <- max(abs(top30enrichment.genome.matrix), na.rm = TRUE)
+
+breaks_seq <- seq(-max_abs, max_abs, length.out = 101)
+colors_seq <- colorRampPalette(c("blue", "white", "red"))(100)
+
+s1 <- pheatmap(
+  t(top30enrichment.genome.matrix),
+  color = colors_seq,
+  breaks = breaks_seq,
+  cluster_rows = TRUE,
+  cluster_cols = TRUE,
+  scale = "none",
+  na_col = "grey90",
+  fontsize_col = 8,
+  cellwidth = 10,
+  treeheight_row = 4,
+  treeheight_col = 4,
+  cellheight = 10,
+  display_numbers = t(sig_matrix),
+  number_color = "black"
+)
+
+
+```
+
+```{r fig6-enrichment }
+#| warning: false
+#| echo: false
+#| fig-width: 10
+#| fig-height: 10
+
+path_counts <- top30.genome_paths_table %>%
+  group_by(Description) %>%
+  summarise(n_genomes = n_distinct(genome))
+
+filtered_paths <- path_counts %>%
+  filter(n_genomes >= 5) %>%
+  pull(Description)
+
+top30.genome_paths_table_filt <- top30.genome_paths_table %>%
+  filter(
+    Description %in% filtered_paths,
+    Description != "Coronavirus disease - COVID-19"
+  )
+
+sig_table <- top30.genome_paths_table_filt %>%
+  left_join(counts.rhodo.genomes %>% distinct(family, genome, genus), join_by(genome)) %>%
+  mutate(
+    genome_family = paste0(genome, "_", family, "_", genus),
+    sig = case_when(
+      p.adjust < 0.001 ~ "***",
+      p.adjust < 0.01  ~ "**",
+      p.adjust < 0.05  ~ "*",
+      TRUE ~ ""
+    )
+  ) %>%
+  left_join(dominance, join_by(genome_family)) %>%
+   mutate(genome_family = case_when(
+      dominance == "coast" ~ paste0(genome_family,'*'),
+      TRUE ~ genome_family
+    )) %>%
+  select(Description, genome_family, sig) %>%
+  pivot_wider(names_from = genome_family, values_from = sig, values_fill = "") %>%
+  column_to_rownames("Description")
+
+sig_matrix <- as.matrix(sig_table)
+
+top30.enrichment.genome <- top30.genome_paths_table_filt %>%
+  left_join(counts.rhodo.genomes %>% distinct(family, genome, genus), join_by(genome)) %>%
+  mutate(genome_family = paste0(genome, "_", family, "_", genus)) %>%
+  left_join(dominance, join_by(genome_family)) %>%
+  mutate(genome_family = case_when(
+      dominance == "coast" ~ paste0(genome_family,'*'),
+      TRUE ~ genome_family
+    )) %>%
+  select(Description, genome_family, NES) %>%
+  pivot_wider(names_from = genome_family, values_from = NES, values_fill = 0) %>%
+  column_to_rownames("Description")
+
+top30enrichment.genome.matrix <- as.matrix(top30.enrichment.genome)
+
+max_abs <- max(abs(top30enrichment.genome.matrix), na.rm = TRUE)
+breaks_seq <- seq(-5, 5, length.out = 101)
+colors_seq <- colorRampPalette(c("#1B9E77", "white", "#FEC44F"))(100)
+
+
+
+f6a <- pheatmap(
+  top30enrichment.genome.matrix,
+  color = colors_seq,
+  breaks = breaks_seq,
+  cluster_rows = TRUE,
+  cluster_cols = TRUE,
+  scale = "none",
+  na_col = "grey90",
+  fontsize_col = 8,
+  treeheight_row = 4,
+  treeheight_col = 4,
+  cellwidth = 15,
+  cellheight = 15,
+  show_colnames = FALSE,
+  display_numbers = sig_matrix,
+  number_color = "black",
+  silent = TRUE
+)
+```
+
+## Correlation analysis - Motility
+
+```{r prepare-motility-table}
+motility.individual <- individual.abundance %>%
+  mutate(
+    curated_kegg_module = case_when(
+      ko == "K04641" ~ "rhodopsin",
+      ko %in% archaeal_flagella      ~ "Archaeal flagella",
+      ko %in% flagella_filament      ~ "Flagellar filament",
+      ko %in% flagella_stator        ~ "Flagellar stator",
+      ko %in% flagella_rod_hook      ~ "Rod and hook",
+      ko %in% flagella_rings         ~ "Flagellar rings",
+      ko %in% flagella_c_ring        ~ "C-ring",
+      ko %in% flagella_h_t_rings     ~ "H/T rings",
+      ko %in% flagella_typeIII       ~ "Type III secretion (flagella)",
+      ko %in% flagella_regulation    ~ "Flagellar regulation",
+      ko %in% che_system             ~ "Chemotaxis (Che system)",
+      ko %in% mcps                   ~ "Chemotaxis receptors (MCPs)",
+      # Pili / twitching systems
+      ko %in% twitching_motility     ~ "Twitching motility",
+      ko %in% chemosensory_pili      ~ "Chemosensory pili system",
+      ko %in% positive_phototaxis    ~ "Positive phototaxis",
+      ko %in% typeIV_pilus_assembly  ~ "Type IV pilus assembly",
+      ko %in% tad_pili_system        ~ "Tad pili system",
+      ko %in% fimbrial_proteins      ~ "Fimbriae",
+
+      TRUE ~ NA_character_
+    )
+  )
+```
+
+```{r heatmap-motility-top30}
+#| echo: false
+#| warning: false
+#| fig-width: 15
+#| fig-height: 8
+
+###############################################
+### 0. Filtrazione iniziale
+###############################################
+flagella.individual <- motility.individual %>%
+  filter(curated_kegg_module %in% c("Archaeal flagella",
+                                    "Flagellar filament", "Flagellar stator", "Rod and hook",
+                                    "Flagellar rings", "C-ring", "H/T rings",
+                                    "Type III secretion (flagella)", "Flagellar regulation",
+                                    "Chemotaxis (Che system)", "Chemotaxis receptors (MCPs)", 'rhodopsin'))
+
+results_list <- list()
+
+for (gen in top30.rhodo.genomes) {
+  
+  tmp <- flagella.individual %>%
+    filter(genome == gen) %>%
+    select(sample, curated_kegg_module, perc) %>%
+    group_by(sample, curated_kegg_module) %>%
+    summarise(sum_tpm = sum(perc), .groups = "drop") %>%
+    pivot_wider(names_from = curated_kegg_module, values_from = sum_tpm, values_fill = 0)
+  
+  numeric_vars <- tmp %>% select(where(is.numeric))
+  
+  if (!"rhodopsin" %in% colnames(numeric_vars)) next
+  if (sd(numeric_vars$rhodopsin) == 0) next
+  
+  cor_values <- numeric(length(colnames(numeric_vars)))
+  p_values   <- numeric(length(colnames(numeric_vars)))
+  names(cor_values) <- names(p_values) <- colnames(numeric_vars)
+  
+  for (g in colnames(numeric_vars)) {
+    if (g == "rhodopsin") {
+      cor_values[g] <- NA
+      p_values[g]   <- NA
+      next
+    }
+    if (sd(numeric_vars[[g]]) == 0) {
+      cor_values[g] <- NA
+      p_values[g]   <- NA
+      next
+    }
+    
+    test <- cor.test(numeric_vars[[g]], numeric_vars$rhodopsin, method="spearman")
+    cor_values[g] <- test$estimate
+    p_values[g]   <- test$p.value
+  }
+  
+  results_list[[gen]] <- data.frame(
+    genome = gen,
+    gene = names(cor_values),
+    Correlation = cor_values,
+    p_value = p_values
+  )
+}
+
+
+
+# Add * when p_value is significant
+plot_data <- bind_rows(results_list) %>%
+  #mutate(Significance = case_when(
+  #  p_value < 0.001 ~ "***",
+  #  p_value < 0.01  ~ "**",
+  #  p_value < 0.05  ~ "*",
+  #  TRUE ~ ""
+  #)) %>%
+  left_join(counts.rhodo.genomes %>%
+              distinct(genome,family), join_by(genome)) %>%
+  mutate(genome_family = paste0(genome, '_', family)) %>%
+  group_by(genome) %>%
+  mutate(
+    p_adj = p.adjust(p_value, method = "BH"),
+    Significance = case_when(
+      p_adj < 0.001 ~ "***",
+      p_adj < 0.01  ~ "**",
+      p_adj < 0.05  ~ "*",
+      TRUE ~ ""
+    )
+  ) %>%
+  ungroup()
+
+# Build matrix based on correlations
+cor_mat <- plot_data %>%
+  select(-Significance, -p_value, -genome, -family, -p_adj) %>%
+  pivot_wider(names_from = genome_family, values_from = Correlation, values_fill = 0) %>%
+  column_to_rownames("gene") %>%
+  as.matrix()
+
+# Build significance matrix for pheatmap
+signif_mat <- plot_data %>%
+  select(-Correlation, -p_value, -genome, -family, -p_adj) %>%
+  pivot_wider(names_from = genome_family, values_from = Significance, values_fill = "") %>%
+  column_to_rownames("gene") %>%
+  as.matrix()
+
+# Remove any NAs or InF
+cor_mat_clean <- cor_mat %>%
+  as.data.frame() %>%
+  filter(complete.cases(.)) %>%        # elimina righe con NA
+  as.matrix()
+
+# Substitution the remaining with zeros
+cor_mat_clean[!is.finite(cor_mat_clean)] <- 0
+
+# Build matrix for significance
+signif_mat <- signif_mat[rownames(cor_mat_clean), , drop = FALSE]
+
+threshold <- 0.1
+# 
+keep_rows <- apply(cor_mat_clean, 1, function(x) any(abs(x) >= threshold))
+keep_cols <- apply(cor_mat_clean, 2, function(x) any(abs(x) >= threshold))
+# 
+cor_mat_filt <- cor_mat_clean[keep_rows, keep_cols]
+signif_mat   <- signif_mat[keep_rows, keep_cols]
+# 
+# # TRUE se la cella è significativa (*, **, ***)
+sig_bool <- signif_mat != ""
+# 
+# # Filtra righe e colonne
+keep_rows <- apply(sig_bool, 1, any)
+keep_cols <- apply(sig_bool, 2, any)
+# 
+#cor_mat_filt   <- cor_mat_clean[keep_rows, keep_cols, drop = FALSE]
+#signif_mat_filt <- signif_mat[keep_rows, keep_cols, drop = FALSE]
+
+lim <- max(abs(cor_mat_filt))
+breaks <- seq(-lim, lim, length.out = 101)
+# Plot pheatmap
+pheatmap(
+  cor_mat_filt,
+  cluster_rows = TRUE,
+  breaks = breaks,
+  cluster_cols = TRUE,
+  display_numbers = signif_mat,
+  number_color = "black",
+  color = colorRampPalette(c("blue", "white", "red"))(100),
+  fontsize_row = 15,
+  border = TRUE,
+  treeheight_row = 1,
+  treeheight_col = 1,
+  fontsize_col = 15,
+  main = "Spearman correlation prd and KEGG modules for Motility",
+  fontsize = 20
+  
+)
+```
+
+## Correlation analysis - Pili
+
+```{r heatmap-pili-top30}
+#| echo: false
+#| warning: false
+#| fig-width: 15
+#| fig-height: 8
+
+###############################################
+### 0. Filtrazione iniziale
+###############################################
+pili.individual <- motility.individual %>%
+  filter(curated_kegg_module %in% c("Twitching motility", "Chemosensory pili system",
+                                    "Positive phototaxis", "Type IV pilus assembly",
+                                    "Tad pili system", "Fimbriae", 'rhodopsin'))
+results_list <- list()
+
+for (gen in top30.rhodo.genomes) {
+  
+  tmp <- pili.individual %>%
+    filter(genome == gen) %>%
+    select(sample, curated_kegg_module, perc) %>%
+    group_by(sample, curated_kegg_module) %>%
+    summarise(sum_tpm = sum(perc), .groups = "drop") %>%
+    pivot_wider(names_from = curated_kegg_module, values_from = sum_tpm, values_fill = 0)
+  
+  numeric_vars <- tmp %>% select(where(is.numeric))
+  
+  if (!"rhodopsin" %in% colnames(numeric_vars)) next
+  if (sd(numeric_vars$rhodopsin) == 0) next
+  
+  cor_values <- numeric(length(colnames(numeric_vars)))
+  p_values   <- numeric(length(colnames(numeric_vars)))
+  names(cor_values) <- names(p_values) <- colnames(numeric_vars)
+  
+  for (g in colnames(numeric_vars)) {
+    if (g == "rhodopsin") {
+      cor_values[g] <- NA
+      p_values[g]   <- NA
+      next
+    }
+    if (sd(numeric_vars[[g]]) == 0) {
+      cor_values[g] <- NA
+      p_values[g]   <- NA
+      next
+    }
+    
+    test <- cor.test(numeric_vars[[g]], numeric_vars$rhodopsin, method="spearman")
+    cor_values[g] <- test$estimate
+    p_values[g]   <- test$p.value
+  }
+  
+  results_list[[gen]] <- data.frame(
+    genome = gen,
+    gene = names(cor_values),
+    Correlation = cor_values,
+    p_value = p_values
+  )
+}
+
+
+
+# Add * when p_value is significant
+plot_data <- bind_rows(results_list) %>%
+  #mutate(Significance = case_when(
+  #  p_value < 0.001 ~ "***",
+  #  p_value < 0.01  ~ "**",
+  #  p_value < 0.05  ~ "*",
+  #  TRUE ~ ""
+  #)) %>%
+  left_join(counts.rhodo.genomes %>%
+              distinct(genome,family), join_by(genome)) %>%
+  mutate(genome_family = paste0(genome, '_', family)) %>%
+  group_by(genome) %>%
+  mutate(
+    p_adj = p.adjust(p_value, method = "BH"),
+    Significance = case_when(
+      p_adj < 0.001 ~ "***",
+      p_adj < 0.01  ~ "**",
+      p_adj < 0.05  ~ "*",
+      TRUE ~ ""
+    )
+  ) %>%
+  ungroup()
+
+# Build matrix based on correlations
+cor_mat <- plot_data %>%
+  select(-Significance, -p_value, -genome, -family, -p_adj) %>%
+  pivot_wider(names_from = genome_family, values_from = Correlation, values_fill = 0) %>%
+  column_to_rownames("gene") %>%
+  as.matrix()
+
+# Build significance matrix for pheatmap
+signif_mat <- plot_data %>%
+  select(-Correlation, -p_value, -genome, -family, -p_adj) %>%
+  pivot_wider(names_from = genome_family, values_from = Significance, values_fill = "") %>%
+  column_to_rownames("gene") %>%
+  as.matrix()
+
+# Remove any NAs or InF
+cor_mat_clean <- cor_mat %>%
+  as.data.frame() %>%
+  filter(complete.cases(.)) %>%        # elimina righe con NA
+  as.matrix()
+
+# Substitution the remaining with zeros
+cor_mat_clean[!is.finite(cor_mat_clean)] <- 0
+
+# Build matrix for significance
+signif_mat <- signif_mat[rownames(cor_mat_clean), , drop = FALSE]
+
+# threshold <- 0.5
+# 
+# keep_rows <- apply(cor_mat_clean, 1, function(x) any(abs(x) >= threshold))
+# keep_cols <- apply(cor_mat_clean, 2, function(x) any(abs(x) >= threshold))
+# 
+# cor_mat_filt <- cor_mat_clean[keep_rows, keep_cols]
+# signif_mat   <- signif_mat[keep_rows, keep_cols]
+# 
+# # TRUE se la cella è significativa (*, **, ***)
+# sig_bool <- signif_mat != ""
+# # 
+# # # Filtra righe e colonne
+# keep_rows <- apply(sig_bool, 1, any)
+# keep_cols <- apply(sig_bool, 2, any)
+# # 
+# cor_mat_filt   <- cor_mat_filt[keep_rows, keep_cols, drop = FALSE]
+# signif_mat_filt <- signif_mat[keep_rows, keep_cols, drop = FALSE]
+
+lim <- max(abs(cor_mat_clean))
+breaks <- seq(-lim, lim, length.out = 101)
+# Plot pheatmap
+pheatmap(
+  cor_mat_clean,
+  breaks = breaks,
+  cluster_rows = TRUE,
+  cluster_cols = TRUE,
+  display_numbers = signif_mat,
+  number_color = "black",
+  color = colorRampPalette(c("blue", "white", "red"))(100),
+  fontsize_row = 10,
+  #scale = 'column',
+  border = TRUE,
+  treeheight_row = 1,
+  treeheight_col = 1,
+  fontsize_col = 10,
+  main = "Spearman correlation rhodopsin and KEGG modules pili system metabolism"
+)
+
+```
+
+## Correlation analysis - transporters
+
+```{r transporters-prepare-table }
+transporters.individual <- individual.abundance %>%
+  filter(ko %in% transporters | annotation == "rhodopsin") %>%
+  mutate(curated_kegg_module = case_when(
+    ko == "K04641" ~ "rhodopsin",
+    TRUE ~ "Transporters"
+    )
+  )
+```
+
+```{r heatmap-KO-transporters-top30}
+#| echo: false
+#| warning: false
+#| fig-width: 15
+#| fig-height: 13
+
+###############################################
+### 0. Filtrazione iniziale
+###############################################
+results_list <- list()
+
+
+for (gen in top30.rhodo.genomes) {
+  
+  tmp <- transporters.individual %>%
+    filter(genome == gen) %>%
+    select(sample, ko, perc) %>%
+    group_by(sample, ko) %>%
+    summarise(sum_tpm = sum(perc), .groups = "drop") %>%
+    pivot_wider(names_from = ko, values_from = sum_tpm, values_fill = 0)
+  
+  numeric_vars <- tmp %>% select(where(is.numeric))
+  
+  if (!"K04641" %in% colnames(numeric_vars)) next
+  if (sd(numeric_vars$K04641) == 0) next
+  
+  cor_values <- numeric(length(colnames(numeric_vars)))
+  p_values   <- numeric(length(colnames(numeric_vars)))
+  names(cor_values) <- names(p_values) <- colnames(numeric_vars)
+  
+  for (g in colnames(numeric_vars)) {
+    if (g == "K04641") {
+      cor_values[g] <- NA
+      p_values[g]   <- NA
+      next
+    }
+    if (sd(numeric_vars[[g]]) == 0) {
+      cor_values[g] <- NA
+      p_values[g]   <- NA
+      next
+    }
+    
+    test <- cor.test(numeric_vars[[g]], numeric_vars$K04641, method="spearman")
+    cor_values[g] <- test$estimate
+    p_values[g]   <- test$p.value
+  }
+  
+  results_list[[gen]] <- data.frame(
+    genome = gen,
+    gene = names(cor_values),
+    Correlation = cor_values,
+    p_value = p_values
+  )
+}
+
+
+
+# Add * when p_value is significant
+plot_data <- bind_rows(results_list) %>%
+  #mutate(Significance = case_when(
+  #  p_value < 0.001 ~ "***",
+  #  p_value < 0.01  ~ "**",
+  #  p_value < 0.05  ~ "*",
+  #  TRUE ~ ""
+  #)) %>%
+  left_join(counts.rhodo.genomes %>%
+              distinct(genome,family), join_by(genome)) %>%
+  mutate(genome_family = paste0(genome, '_', family)) %>%
+  group_by(genome) %>%
+  mutate(
+    p_adj = p.adjust(p_value, method = "BH"),
+    Significance = case_when(
+      p_adj < 0.001 ~ "***",
+      p_adj < 0.01  ~ "**",
+      p_adj < 0.05  ~ "*",
+      TRUE ~ ""
+    )
+  ) %>%
+  ungroup()
+  
+
+# Build matrix based on correlations
+cor_mat <- plot_data %>%
+  select(-Significance, -p_value, -genome, -family, -p_adj) %>%
+  pivot_wider(names_from = genome_family, values_from = Correlation, values_fill = 0) %>%
+  column_to_rownames("gene") %>%
+  as.matrix()
+
+# Build significance matrix for pheatmap
+signif_mat <- plot_data %>%
+  select(-Correlation, -p_value, -genome, -family, -p_adj) %>%
+  pivot_wider(names_from = genome_family, values_from = Significance, values_fill = "") %>%
+  column_to_rownames("gene") %>%
+  as.matrix()
+
+# Remove any NAs or InF
+cor_mat_clean <- cor_mat %>%
+  as.data.frame() %>%
+  filter(complete.cases(.)) %>%        # elimina righe con NA
+  as.matrix()
+
+# Substitution the remaining with zeros
+cor_mat_clean[!is.finite(cor_mat_clean)] <- 0
+
+# Build matrix for significance
+signif_mat <- signif_mat[rownames(cor_mat_clean), , drop = FALSE]
+
+threshold <- 0.5
+# 
+keep_rows <- apply(cor_mat_clean, 1, function(x) any(abs(x) >= threshold))
+keep_cols <- apply(cor_mat_clean, 2, function(x) any(abs(x) >= threshold))
+# 
+cor_mat_filt <- cor_mat_clean[keep_rows, keep_cols]
+signif_mat   <- signif_mat[keep_rows, keep_cols]
+# 
+# # TRUE se la cella è significativa (*, **, ***)
+sig_bool <- signif_mat != ""
+# 
+# # Filtra righe e colonne
+keep_rows <- apply(sig_bool, 1, any)
+keep_cols <- apply(sig_bool, 2, any)
+# 
+cor_mat_filt   <- cor_mat_filt[keep_rows, keep_cols, drop = FALSE]
+signif_mat_filt <- signif_mat[keep_rows, keep_cols, drop = FALSE]
+
+lim <- max(abs(cor_mat_filt))
+breaks <- seq(-lim, lim, length.out = 101)
+# Plot pheatmap
+pheatmap(
+  cor_mat_filt,
+  cluster_rows = TRUE,
+  breaks = breaks,
+  cluster_cols = TRUE,
+  display_numbers = signif_mat_filt,
+  number_color = "black",
+  color = colorRampPalette(c("blue", "white", "red"))(100),
+  fontsize_row = 10,
+  #scale = 'column',
+  border = TRUE,
+  treeheight_row = 1,
+  treeheight_col = 1,
+  fontsize_col = 10,
+  main = "Spearman correlation prd and KO term for transporters"
+)
+```
+
+```{r try-grouping-transporters}
+#| fig-height: 10
+ko_class <- c(
+
+  # ABC transporters
+  K02004 = "ABC transporter",
+  K11085 = "ABC transporter",
+  K02037 = "ABC transporter",
+  K01998 = "ABC transporter (AA)",
+  K11960 = "ABC transporter (AA)",
+  K02049 = "ABC transporter (AA)",
+  K02003 = "ABC transporter",
+  K01999 = "ABC transporter (AA)",
+  K02042 = "ABC transporter",
+  K01990 = "ABC transporter",
+  K01995 = "ABC transporter (AA)",
+  K02031 = "ABC transporter (AA)",
+  K02012 = "ABC transporter",
+  K05813 = "ABC transporter",
+  K02033 = "ABC transporter (AA)",
+  K02036 = "ABC transporter",
+  K02054 = "ABC transporter (AA)",
+  K02035 = "ABC transporter (AA)",
+  K02058 = "ABC transporter",
+  K02002 = "ABC transporter (AA)",
+  K09817 = "ABC transporter",
+  K23536 = "ABC transporter",
+  K23537 = "ABC transporter",
+  K02038 = "ABC transporter",
+  K03523 = "ABC transporter",
+  K10020 = "ABC transporter",
+  K10018 = "ABC transporter",
+
+  # Amino-acid transporters (non-ABC)
+  K02030 = "AA transporter",
+  K09969 = "AA transporter",
+  K01998 = "AA transporter",
+  K01999 = "AA transporter",
+  K01995 = "AA transporter",
+  K01996 = "AA transporter",
+
+  # Sugar / carbohydrate transporters
+  K10117 = "Sugar transporter",
+  K05813 = "Sugar transporter",       # also listed as ABC above
+  K17241 = "Sugar transporter",
+  K17315 = "Sugar transporter",
+
+  # Ion / metal transporters
+  K09013 = "Ion/metal transporter",
+  K03498 = "Ion/metal transporter",
+  K09816 = "Ion/metal transporter",
+  K03560 = "Ion/metal transporter",
+  K03832 = "Ion/metal transporter",
+  K03321 = "Ion/metal transporter",
+  K09696 = "Ion/metal transporter",
+  K01571 = "Ion/metal transporter",
+  K07300 = "Ion/metal transporter",
+  K07301 = "Ion/metal transporter",
+  K15987 = "Ion/metal transporter",
+  K03281 = "Ion/metal transporter",
+  K15268 = "Ion/metal transporter",
+  K11249 = "Ion/metal transporter",
+  K16091 = "Ion/metal transporter",
+
+  # Multidrug efflux pumps
+  K18990 = "Multidrug efflux",
+  K07798 = "Multidrug efflux",
+  K08217 = "Multidrug efflux",
+  K06902 = "Multidrug efflux",
+  K09808 = "Multidrug efflux",
+
+  # TRAP transporters
+  K21395 = "TRAP transporter",
+  K21393 = "TRAP transporter",
+  K11690 = "TRAP transporter",
+
+  # Peptide/nickel transporters (Opp/Nik)
+  K02031 = "AA transporter",
+  K02033 = "AA transporter",
+  K02034 = "AA transporter",
+  K02035 = "AA transporter",
+
+  # Osmolyte transporters
+  K02002 = "Osmolyte transporter",
+  K10117 = "Osmolyte transporter",
+
+  # MFS transporters
+  K08217 = "MFS transporter",
+  K06902 = "MFS transporter",
+  K07793 = "MFS transporter",
+  K07794 = "MFS transporter",
+  K07795 = "MFS transporter",
+
+  # Outer membrane / envelope systems
+  K03560 = "Envelope system",
+  K03562 = "Envelope system",
+  K03641 = "Envelope system",
+  K05807 = "Envelope system",
+  K06189 = "Envelope system",
+  K02195 = "Envelope system",
+  K06196 = "Envelope system",
+  K03980 = "Envelope system",
+  K07277 = "Envelope system",
+
+  # Other / uncategorized
+  K15383 = "Other transporter",
+  K05770 = "Other transporter",
+  K14393 = "Other transporter",
+  K16052 = "Other transporter",
+  K07127 = "Other transporter",
+  K02198 = "Other transporter"
+)
+
+# Add ko class
+plot_data <- plot_data %>%
+  mutate(class = ko_class[gene])
+
+# get average
+class_summary <- plot_data %>%
+  left_join(counts.rhodo.genomes %>% 
+              filter(genome %in% top30.rhodo.genomes) %>%
+              distinct(genome, genus), join_by(genome)) %>%
+  mutate(genome_family = paste0(genome, '_', family, '_', genus)) %>%
+  left_join(dominance, join_by(genome_family)) %>%
+  mutate(genome_family = case_when(
+      dominance == "coast" ~ paste0(genome_family,'*'),
+      TRUE ~ genome_family
+    )) %>%
+  filter(!is.na(class)) %>%
+  group_by(genome_family, class) %>%
+  summarise(
+    mean_cor = mean(Correlation, na.rm = TRUE),
+    Significance = case_when(
+      any(p_adj < 0.001) ~ "***",
+      any(p_adj < 0.01)  ~ "**",
+      any(p_adj < 0.05)  ~ "*",
+      TRUE ~ ""
+    ),
+    .groups = "drop"
+  )
+
+# significance matrix
+sig_matrix <- class_summary %>%
+  select(genome_family, class, Significance) %>%
+  pivot_wider(
+    names_from = genome_family,
+    values_from = Significance,
+    values_fill = ""
+  ) %>%
+  column_to_rownames("class") %>%
+  as.matrix()
+
+# correlation matrix
+mat_class <- class_summary %>%
+  select(genome_family, class, mean_cor) %>%
+  pivot_wider(
+    names_from = genome_family,
+    values_from = mean_cor,
+    values_fill = 0
+  ) %>%
+  column_to_rownames("class") %>%
+  as.matrix()
+
+
+pal <- colorRampPalette(c("#2166AC", "#FFFFFF", "#D6604D"))(100)
+
+
+lim <- max(abs(mat_class), na.rm = TRUE)
+breaks <- seq(-1, 1, length.out = 101)
+
+
+# get col order from f6a
+hc_cols <- hclust(dist(t(top30enrichment.genome.matrix)))
+col_order <- hc_cols$order
+
+colnames_in_order <- colnames(top30enrichment.genome.matrix)[col_order]
+
+cols_use <- colnames_in_order[colnames_in_order %in% colnames(mat_class)]
+
+mat_class_ord <- mat_class[, cols_use, drop = FALSE]
+sig_matrix_ord <- sig_matrix[, cols_use, drop = FALSE]
+
+#col_order <- f6a$tree_col$order
+#colnames_in_order <- colnames(top30enrichment.genome.matrix)[col_order]
+#cols_use <- colnames_in_order[colnames_in_order %in% colnames(mat_class)]
+
+#mat_class_ord <- mat_class[, cols_use, drop = FALSE]
+#sig_matrix_ord <- sig_matrix[, cols_use, drop = FALSE]
+
+f6b <- pheatmap(
+  mat_class_ord,
+  color = pal,
+  breaks = breaks,
+  cellwidth = 15,
+  cellheight = 15,
+  cluster_rows = TRUE,
+  cluster_cols = FALSE,   # preserves your chosen order
+  treeheight_col = 5,
+  treeheight_row = 5,
+  display_numbers = sig_matrix_ord,
+  number_color = "black"
+)
+```
+
+```{r fig6-final}
+#| fig-height:  19
+#| fig-width: 15
+fig6a <- as.ggplot(f6a)
+fig6b <- as.ggplot(f6b)
+x <- fig6a / fig6b + plot_annotation(tag_levels = 'A')
+ggsave(
+  filename = "heatmap.svg",
+  plot = x,
+  width = 30,
+  height = 55,
+  units = "cm"     # or "cm"
+)
+
+```
+
+```{r respiration-markers}
+#| warning: FALSE
+#| echo: FALSE
+# respiration K02257
+# tauA K15551
+df_corr <- individual.abundance %>%
+  filter(
+    ko %in% c("K04641", "K02257"),
+    genome %in% top30.rhodo.genomes
+  ) %>%
+  mutate(genome_with_family = paste0(genome, '_', family)) %>%
+  group_by(genome_with_family, sample, ko) %>%
+  summarise(perc = sum(perc), .groups = "drop") %>%
+  pivot_wider(names_from = ko, values_from = perc, values_fill = 0)
+
+# Compute correlation + p-values per genome
+cor_table <- df_corr %>%
+  group_by(genome_with_family) %>%
+  summarise(
+    cor_value = cor(K04641, K02257, method = "spearman"),
+    p_value = cor.test(K04641, K02257, method = "spearman")$p.value,
+    .groups = "drop"
+  ) %>%
+  mutate(
+    sig = case_when(
+      p_value < 0.001 ~ "***",
+      p_value < 0.01  ~ "**",
+      p_value < 0.05  ~ "*",
+      TRUE ~ ""
+    )
+  )
+
+cor_table <- cor_table %>%
+  mutate(
+    p_adj = p.adjust(p_value, method = "BH"),
+    sig = case_when(
+      p_adj < 0.001 ~ "***",
+      p_adj < 0.01  ~ "**",
+      p_adj < 0.05  ~ "*",
+      TRUE ~ ""
+    )
+  )
+
+# Long format for heatmap
+cor_long <- cor_table %>%
+  pivot_longer(
+    cols = cor_value,
+    names_to = "pair",
+    values_to = "correlation"
+  )
+
+# Plot heatmap with significance stars
+ggplot(cor_long, aes(x = pair, y = genome_with_family, fill = correlation)) +
+  geom_tile() +
+  geom_text(aes(label = sig), color = "black", size = 5) +
+  scale_fill_gradient2(
+    low = "blue",
+    mid = "white",
+    high = "red",
+    midpoint = 0,
+    limits = c(-1, 1),
+    name = "Spearman\ncorrelation"
+  ) +
+  theme_bw() +
+  labs(x = "", y = "Genome")
+
+```
+
+## Supplementary figures - Line plots
+
+Across taxa, the degree of rhodopsin regulation varied systematically with genome-wide transcriptional activity. Low-abundance, low-activity species exhibited consistently high rhodopsin investment, with expression tightly coupled to genome-wide transcription, consistent with a constitutive reliance on phototrophy under energy-limited conditions. In contrast, more transcriptionally active species displayed pronounced decoupling between rhodopsin allocation and total transcription, indicating greater regulatory flexibility and context-dependent investment. Importantly, genome-wide activity covaries with environmental parameters such as chlorophyll a, turbidity, nutrient concentrations, and prokaryotic abundance, making it difficult to disentangle intrinsic from extrinsic drivers of rhodopsin expression. Together, these results point to an interaction between cellular activity state and environmental conditions in shaping rhodopsin transcriptional strategies.
+
+```{r prepare-plots-family-level}
+#| fig-width: 15
+#| fig-height: 7
+prd_df <-
+  individual.abundance %>%
+  filter(genome %in% top30.rhodo.genomes,
+         annotation == "rhodopsin") %>%
+  group_by(day, sample, site, season, genome, family, genus) %>%
+  summarise(value = sum(perc), .groups = "drop") %>%
+  mutate(metric = "Rhodopsin investment (%)")
+
+prd_df.total <-
+  counts.rhodo.genomes %>%
+  filter(genome %in% top30.rhodo.genomes,
+         annotation == "rhodopsin") %>%
+  group_by(day, sample, site, season, genome, family, genus) %>%
+  summarise(value = sum(tpm), .groups = "drop") %>%
+  mutate(metric = "Rhodopsin expression")
+
+tpm_df <-
+  counts.rhodo.genomes %>%
+  filter(genome %in% top30.rhodo.genomes) %>%
+  group_by(day, sample, site, season, genome, family, genus) %>%
+  summarise(value = sum(tpm), .groups = "drop") %>%
+  mutate(metric = "Genome-wide transcription (TPM)")
+
+plot_df <- bind_rows(prd_df, tpm_df, prd_df.total)
+
+plots_by_family <-
+  plot_df %>%
+  group_split(family) %>%
+  map(~ ggplot(.x,
+               aes(x = as.numeric(day),
+                   y = value,
+                   color = factor(season,
+                                  levels = c("Winter", "Spring", "Summer")))) +
+        geom_point(size = 1) +
+        geom_line() +
+        scale_color_manual(values = c("blue", "green", "red")) +
+        theme_bw() +
+        theme(
+          legend.position = "null",
+          strip.text.y = element_text(angle = 0),
+          panel.spacing = unit(0.6, "lines")
+        ) +
+        ggtitle(unique(.x$family))
+  )
+```
+
+```{r CABXJW01}
+#| fig-width: 5
+#| fig-height: 6
+plots_by_family[[1]] + facet_wrap(metric ~ genus+genome + factor(site, levels = c("Offshore", "Coast")), scales = "free_y", ncol =2) +
+  labs(
+    x = "day"
+  )
+```
+
+```{r D2472}
+#| fig-width: 5
+#| fig-height: 6
+plots_by_family[[2]] + facet_wrap(metric ~ genus+genome + factor(site, levels = c("Offshore", "Coast")), scales = "free_y", ncol =2) +
+  labs(
+    x = "day"
+  )
+
+```
+
+```{r Rhodobacteraceae}
+#| fig-width: 5
+#| fig-height: 6
+plots_by_family[[8]] + facet_wrap(metric ~ genus+genome + factor(site, levels = c("Offshore", "Coast")), scales = "free_y", ncol =2) +
+  labs(
+    x = "day"
+  )
+
+```
+
+**Rhodobacteraceae.**\
+The Rhodobacteraceae genome exhibited low relative investment in rhodopsin expression (\<0.1–0.6%) and showed no consistent relationship between rhodopsin investment and genome-wide transcription. Genome-wide activity was substantially higher at the coastal site than offshore (approximately 2–5-fold), but rhodopsin investment did not display clear seasonal or spatial patterns. Consistently, rhodopsin investment showed no significant correlations with environmental variables or with metabolic pathway expression. This suggests that rhodopsin expression in this genome is maintained at a low, constitutive level rather than being dynamically regulated, consistent with a minor background energetic role.
+
+```{r Pelagi}
+#| fig-width: 30
+#| fig-height: 8
+plots_by_family[[3]] + facet_wrap(metric ~ genus+genome + factor(site, levels = c("Offshore", "Coast")), scales = "free_y", ncol =14) +
+  labs(
+    x = "day"
+  )
+
+```
+
+**Pelagibacteraceae.**\
+Pelagibacteraceae genomes, all belonging to the same genus, exhibited highly coherent genome-wide transcriptional dynamics across the dataset. In contrast, rhodopsin investment and its correlation with environmental variables separated into three distinct clusters, indicating regulatory divergence despite conserved overall activity. Notably, rhodopsin investment patterns converged across genomes during offshore summer conditions, whereas divergence was more pronounced in other seasons and at the coastal site. This suggests that rhodopsin regulation in Pelagibacteraceae is highly context-dependent, with shared strategies emerging under oligotrophic offshore summer conditions and greater plasticity outside their optimal niche.
+
+```{r Portico}
+#| fig-width: 20
+#| fig-height: 7
+plots_by_family[[4]] + facet_wrap(metric ~ genus+genome + factor(site, levels = c("Offshore", "Coast")), scales = "free_y", ncol =10) +
+  labs(
+    x = "day"
+  )
+```
+
+**Porticoccaceae.**\
+In contrast to Poseidoniaceae, Porticoccaceae genomes exhibited coherent rhodopsin investment patterns within genera, including similar genome-wide transcription levels and consistent correlations with environmental variables, suggesting a conserved regulatory strategy.
+
+```{r Posei}
+#| fig-width: 20
+#| fig-height: 8
+plots_by_family[[5]] + facet_wrap(metric ~ genus+genome + factor(site, levels = c("Offshore", "Coast")), scales = "free_y", ncol =8) +
+  labs(
+    x = "day"
+  )
+```
+
+**Poseidoniaceae.**\
+Although Poseidoniaceae genomes displayed highly similar genome-wide transcriptional dynamics and clustered together based on correlations between rhodopsin investment and environmental variables, marked differences emerged in how rhodopsin expression was regulated relative to overall transcriptional activity. Two low-abundance genomes, belonging to different genera, exhibited extremely high rhodopsin investment (\>60%) tightly coupled to genome-wide transcription, particularly under summer coastal conditions, indicating a constitutive, survival-oriented strategy. In contrast, two other genomes showed decoupled regulation, with rhodopsin investment increasing as genome-wide transcription decreased, consistent with a more flexible, facultative strategy. These results indicate conserved environmental sensitivity but divergent regulatory modes within Poseidoniaceae, with conditional convergence under summer coastal conditions.
+
+```{r Pseudothio}
+#| fig-width: 15
+#| fig-height: 7
+plots_by_family[[6]] + facet_wrap(metric ~ genus+genome + factor(site, levels = c("Offshore", "Coast")), scales = "free_y", ncol =6) +
+  labs(
+    x = "day"
+  )
+
+```
+
+**Pseudothioglobaceae.**\
+Pseudothioglobaceae genomes, all from the same genus, showed highly similar and strongly seasonal genome-wide transcriptional patterns, with peak activity in summer at both sites. Rhodopsin investment was comparatively constrained (\~0.2–1.6% of total transcription) but non-random. One genome exhibited significant positive correlations between rhodopsin investment and nitrate, phosphate, and ribosome-related pathways, while the other two showed positive associations with ABC transporter pathways. In contrast, rhodopsin investment was negatively associated with oxidative phosphorylation pathways across all genomes, including one significant correlation.
+
+```{r Punicei}
+#| fig-width: 20
+#| fig-height: 8
+plots_by_family[[7]] + facet_wrap(metric ~ genus+genome + factor(site, levels = c("Offshore", "Coast")), scales = "free_y", ncol =8) +
+  labs(
+    x = "day"
+  )
+```
+
+**Puniceispirillaceae.**\
+Puniceispirillaceae genomes (four in total, three belonging to the same genus) exhibited higher genome-wide transcription at the coastal site than offshore, with all genomes showing a consistent seasonal pattern characterized by peak activity in spring at both sites, most pronounced at the coast. One genome belonging to a different genus (Metabat2) displayed lower overall transcriptional activity but markedly higher relative investment in rhodopsin expression (10–30%) compared to the other genomes (typically \~4–5%). Rhodopsin investment patterns varied among genomes, including within the same genus. Correlation analyses separated the genomes into distinct clusters, with two genomes showing significant positive associations between rhodopsin investment and turbidity, nitrate, and phosphate, and significant negative correlations with salinity, alongside weaker negative trends with temperature and DOC. Notably, rhodopsin investment was not associated with metabolic or transporter pathways, but instead showed positive correlations with KEGG orthologs related to flagellar rod, hook, and H/T ring components, indicating coordination with motility-related functions.
+
+```{r Thalasso}
+#| fig-width: 20
+#| fig-height: 5
+plots_by_family[[9]] + facet_wrap(metric ~ genus+genome + factor(site, levels = c("Offshore", "Coast")), scales = "free_y", ncol =8) +
+  labs(
+    x = "day"
+  )
+```
+
+**Thalassarchaeaceae.**\
+Thalassarchaeaceae genomes (four, all belonging to the same genus) displayed generally higher genome-wide transcription offshore than at the coastal site, with similar seasonal patterns across genomes and one genome showing markedly higher activity (peaking offshore in spring). Relative investment in rhodopsin expression varied widely among genomes, ranging from low summer values (\~2%) to maxima of \~10–50%. Despite this variability, all genomes exhibited a significant negative correlation between rhodopsin investment and genome-wide transcription (FDR \< 0.05). Correlation analyses with environmental variables separated the genomes into three clusters, with one genome showing a significant positive association with daylight and all genomes displaying positive trends with prokaryotic abundance, chlorophyll a, turbidity, and daylight. No significant associations were detected between rhodopsin investment and metabolic pathways or transporter functions.
+
+```{r DMSP}
+individual.abundance %>%
+filter(ko %in% c('K17486', 'K04641'),
+       genome %in% top30.rhodo.genomes) %>%
+  group_by(sample, genome, ko) %>%
+  summarise(sum_perc = log(sum(perc)+1), .groups = 'drop') %>%
+  pivot_wider(names_from = ko, values_from = sum_perc, values_fill = 1)
+  
+  
+```
