@@ -402,7 +402,7 @@ dominance.table <- dominance %>%
 
 ## Table with stats for top 30 genomes
 
-```{r}
+```{r stats-top-30-genomes}
 summary <- top30.rhodo.genomes %>%
   select(genome) %>%
   inner_join(counts.rhodo.genomes, join_by(genome)) %>%
@@ -416,11 +416,11 @@ With this part of analysis I am trying to dig into pattern I can see from fig.4 
 
 I will focus on:
 
--   Porticocco (2 genomes)
+- Porticocco (2 genomes)
 
--   thalasso (2 genomes)
+- thalasso (2 genomes)
 
--   pelagi (2 genomes)
+- pelagi (2 genomes)
 
 ```{r heatmap-code-preparation}
 #| echo: false
@@ -514,32 +514,61 @@ heatmap_mat_perc_scaled_t <- t(heatmap_mat_perc_scaled)
 # ------------------------------
 # Annotation for samples
 # ------------------------------
+# column_split order: Offshore×Winter, Offshore×Spring, Offshore×Summer,
+#                     Coast×Winter,   Coast×Spring,   Coast×Summer  (6 groups)
+# column_gap = c(0,0,6,0,0): no gap within same site, 6 mm between sites.
+# Site fill: same colour per site → 3 adjacent zero-gap blocks merge visually.
+
 ha_col <- HeatmapAnnotation(
-  Site = as.character(row_annot$site),
-  Season = as.character(row_annot$season),
-  Day = as.character(row_annot$day),
-  col = list(
-    Site = c("Offshore" = "blue", "Coast" = "orange"),
-    Season = c("Winter" = "lightblue", "Spring" = "yellow", "Summer" = "red"),
-    Day = c("1" = "grey80", "3" = "grey50", "5" = "grey30", "7" = "grey10")
+  Site = anno_block(
+    gp = gpar(
+      fill = c("#DDEEFF", "#DDEEFF", "#DDEEFF", "#FFE8CC", "#FFE8CC", "#FFE8CC"),
+      col  = NA
+    ),
+    labels     = c("Offshore", "", "", "Coast", "", ""),
+    labels_gp  = gpar(fontsize = 9, fontface = "bold")
   ),
-  show_legend = TRUE,
+  Season = anno_block(
+    gp        = gpar(fill = NA, col = "grey50"),
+    labels    = c("Winter", "Spring", "Summer", "Winter", "Spring", "Summer"),
+    labels_gp = gpar(fontsize = 8)
+  ),
+  Day = anno_text(
+    as.character(row_annot$day),
+    gp       = gpar(fontsize = 8),
+    rot      = 0,
+    just     = "center",
+    location = 0.5
+  ),
+  show_legend          = FALSE,
   show_annotation_name = TRUE,
   annotation_name_side = "left",
-  annotation_name_gp = gpar(fontsize = 8, fontface = "bold"),
-  annotation_name_rot = 0
+  annotation_name_gp   = gpar(fontsize = 8, fontface = "bold"),
+  annotation_name_rot  = 0
 )
 
 ha_col.2 <- HeatmapAnnotation(
-  Site = as.character(row_annot$site),
-  Season = as.character(row_annot$season),
-  Day = as.character(row_annot$day),
-  col = list(
-    Site = c("Offshore" = "blue", "Coast" = "orange"),
-    Season = c("Winter" = "lightblue", "Spring" = "yellow", "Summer" = "red"),
-    Day = c("1" = "grey80", "3" = "grey50", "5" = "grey30", "7" = "grey10")
+  Site = anno_block(
+    gp = gpar(
+      fill = c("#DDEEFF", "#DDEEFF", "#DDEEFF", "#FFE8CC", "#FFE8CC", "#FFE8CC"),
+      col  = NA
+    ),
+    labels     = c("Offshore", "", "", "Coast", "", ""),
+    labels_gp  = gpar(fontsize = 9, fontface = "bold")
   ),
-  show_legend = TRUE,
+  Season = anno_block(
+    gp        = gpar(fill = NA, col = "grey50"),
+    labels    = c("Winter", "Spring", "Summer", "Winter", "Spring", "Summer"),
+    labels_gp = gpar(fontsize = 8)
+  ),
+  Day = anno_text(
+    as.character(row_annot$day),
+    gp       = gpar(fontsize = 8),
+    rot      = 0,
+    just     = "center",
+    location = 0.5
+  ),
+  show_legend          = FALSE,
   show_annotation_name = FALSE
 )
 
@@ -629,6 +658,10 @@ row_annot$season <- factor(row_annot$season, levels = c("Winter", "Spring", "Sum
 
 ht1 <- Heatmap(
   heatmap_mat_tpm_scaled_t,
+  heatmap_legend_param = list(
+    direction      = "horizontal",
+    title_position = "topcenter"
+  ),
   name = "LogTPM",
   row_order = genome_vector_ordered,
   cluster_rows = FALSE,
@@ -638,14 +671,14 @@ ht1 <- Heatmap(
     row_annot$site,
     row_annot$season
   ),
-  column_gap = unit(1, "mm"),
+  column_gap = unit(c(0, 0, 6, 0, 0), "mm"),
   col = colorRamp2(
     c(0, median(heatmap_mat_tpm_scaled_t), max(heatmap_mat_tpm_scaled_t)),
-    c("white", "yellow", "red")
+    c("white", "#9ECAE1", "#08519C")
   ),
   show_row_names = TRUE,
   show_column_names = FALSE,
-  row_names_gp = gpar(fontsize = 6),
+  row_names_gp = gpar(fontsize = 10),
   column_names_gp = gpar(fontsize = 4),
   border = TRUE,
   rect_gp = gpar(col = "black", lwd = 0.3),
@@ -658,6 +691,10 @@ ht2 <- Heatmap(
   heatmap_mat_perc_scaled_t,
   name = "% Expression",
   row_order = genome_vector_ordered,
+  heatmap_legend_param = list(
+    direction      = "horizontal",
+    title_position = "topcenter"
+  ),
   cluster_rows = FALSE,
   cluster_columns = FALSE,
   top_annotation = ha_col.2,
@@ -665,15 +702,15 @@ ht2 <- Heatmap(
     row_annot$site,
     row_annot$season
   ),
-  column_gap = unit(1, "mm"),
+  column_gap = unit(c(0, 0, 6, 0, 0), "mm"),
   show_row_names = TRUE,
   show_column_names = FALSE,
   border = TRUE,
-  col = colorRamp2(c(0, max_val_perc/2, max_val_perc), c("white", "yellow", "red")),
-  row_names_gp = gpar(fontsize = 6),
+  col = colorRamp2(c(0, max_val_perc/2, max_val_perc), c("white", "#A1D99B", "#238B45")),
+  row_names_gp = gpar(fontsize = 10), 
   column_title = 'Investment rhodopsin expression',
   rect_gp = gpar(col = "black", lwd = 0.3),
-  column_names_gp = gpar(fontsize = 4)
+  column_names_gp = gpar(fontsize = 12)
 )
 
 heatmap_mat_prd_capped_t <- heatmap_mat_prd_capped_t[, sample_order, drop = FALSE]  # for third heatmap
@@ -682,6 +719,10 @@ ht3 <- Heatmap(
   heatmap_mat_prd_capped_t,
   name = "Rhodopsin TPM",
   row_order = genome_vector_ordered,
+  heatmap_legend_param = list(
+    direction      = "horizontal",
+    title_position = "topcenter"
+  ),
   cluster_rows = FALSE,
   cluster_columns = FALSE,
   top_annotation = ha_col.2,
@@ -689,11 +730,11 @@ ht3 <- Heatmap(
     row_annot$site,
     row_annot$season
   ),
-  column_gap = unit(1, "mm"),
+  column_gap = unit(c(0, 0, 6, 0, 0), "mm"),
   show_row_names = TRUE,
   show_column_names = FALSE,
-  row_names_gp = gpar(fontsize = 10),
-  col = colorRamp2(c(0, 150, 300), c("white", "yellow", "red")),
+  row_names_gp = gpar(fontsize = 12),
+  col = colorRamp2(c(0, 150, 300), c("white", "#FDAE6B", "#D94801")),
   column_names_gp = gpar(fontsize = 10),
   border = TRUE,
   rect_gp = gpar(col = "black", lwd = 0.3),
@@ -726,16 +767,33 @@ genome_max <- max(genome_size_vector, na.rm = TRUE)
 ht4 <- Heatmap(
   genome_size_mat,
   name = "Genome size (Mbp)",
+  heatmap_legend_param = list(
+    direction      = "horizontal",
+    title_position = "topcenter"
+  ),
   cluster_rows = FALSE,
   cluster_columns = FALSE,
   show_row_names = TRUE,
   show_column_names = FALSE,
   col = colorRamp2(
     c(genome_min, genome_max),
-    c("lightblue", "#7F2704")),
+    c("#F2F0F7", "#54278F")),
   border = TRUE,
   row_names_gp = gpar(fontsize = 10),
   rect_gp = gpar(col = "black", lwd = 0.3)
+)
+
+# Genus | Family annotation aligned with heatmap row order
+genome_genus_map <- top30genomes.prd.abundance %>%
+  distinct(genome_with_family = as.character(genome_with_family), genus, family)
+genus_vector  <- genome_genus_map$genus[match(row_order_ref,  genome_genus_map$genome_with_family)]
+family_vector <- genome_genus_map$family[match(row_order_ref, genome_genus_map$genome_with_family)]
+genus_family_labels <- paste0(genus_vector, " | ", family_vector)
+
+ra_genus <- rowAnnotation(
+  "Genus | Family" = anno_text(genus_family_labels, gp = gpar(fontsize = 10)),
+  show_annotation_name = TRUE,
+  annotation_name_gp = gpar(fontsize = 9, fontface = "bold")
 )
 ```
 
@@ -745,14 +803,17 @@ ht4 <- Heatmap(
 #| warning: false
 #| echo: false
 
-ht_list <- ht1 + ht3 + ht2 + ht4
+ht_list <- ht1 + ht3 + ht2 + ht4 + ra_genus
+
+png("fig4.png", width = 20, height = 12, units = "in", res = 300)
 draw(
   ht_list,
-  heatmap_legend_side = "bottom",
+  heatmap_legend_side    = "bottom",
   annotation_legend_side = "bottom",
-  merge_legend = TRUE
+  merge_legend           = FALSE,
+  ht_gap                 = unit(8, "mm")
 )
-
+dev.off()
 ```
 
 **Fig. 4 Genome transcription level and rhodopsin expression dynamics across sites and seasons.** Heatmaps show the (left) genome transcription (TPM), (middle) rhodopsin TPM within genomes, and (right) rhodopsin expression as % of total TPM of the 30 genomes expressing most rhodpsin. TPM where rescaled using logarithmic for visualisation purposes. Rows represent genomes, columns represent samples ordered by site (light blue, orange), season (winter-gray,spring-yellow, summer-red), and day (shade of grey 1, 3, 5, 7). Families with strong seasonal rhodopsin expression (Porticoccaceae, Poseidonaceae, and Puniceispirillaceae) contrast with high total transcript activity but weakly expressing groups (SAR11/Pelagibacteraceae, Thalassarchaeaceae). The strongest rhodopsin relative transcription occur in coastal summer (Days 3–5). GCA_018607525.1, GCA_024644585.1
@@ -830,7 +891,7 @@ prd.genome.correlation <- bind_rows(tr.lvl.counts.rhodo.genomes,
 # Spearman correlation
 library(ggpubr)
 
-g1 <- ggplot(
+fig3b <- ggplot(
   prd.genome.correlation %>%
     left_join(
       counts.rhodo.genomes %>%
@@ -857,13 +918,14 @@ g1 <- ggplot(
     label.y.npc = "top",
     size = 4
   ) +
-  scale_color_manual(values = c("green", "red", "blue")) +
+  scale_color_manual(name = "Season", values = c("green", "red", "blue")) +
 
   theme_minimal(base_size = 14) +
   labs(
     x = "log(Total TPM level)",
     y = "log(Total rhodopsin contribution)",
-    title = "Relationship between Genome-wide transcription and Rhodopsin Expression"
+    title = "Relationship between Genome-wide transcription and Rhodopsin Expression",
+    shape = "Site"
   ) +
   theme(
     plot.title = element_text(hjust = 0.5, face = "bold"),
@@ -1189,27 +1251,90 @@ prd.signif_mat <- prd.plot_data_clean_summary %>%
 
 prd.signif_mat[is.na(prd.signif_mat)] <- ""
 
-p0 <- pheatmap(
+fig3a <- pheatmap(
   prd.cor_mat,
   cluster_rows = TRUE,
   cluster_cols = TRUE,
   display_numbers = prd.signif_mat,
-  #col_order = genome_vector_ordered,
   number_color = "black",
   color = colorRampPalette(c("blue", "white", "red"))(100),
-  breaks = seq(-1, 1, length.out = 101),  # force -1 to 1 scale
+  breaks = seq(-1, 1, length.out = 101),
   main = "Spearman correlation - Environmental vs prd genome level",
-  fontsize = 10,
-  fontsize_row = 12,
-  fontsize_col = 12,
+  fontsize = 12,
+  fontsize_row = 14,
+  fontsize_col = 14,
   cellwidth = 15,
   cellheight = 13,
   treeheight_row = 7,
   treeheight_col = 20,
-  #scale = "column",
   legend = FALSE,
-  fontsize_number = 10,
+  fontsize_number = 11,
   border_color = "black" )
+```
+
+```{r plot-fig3}
+#| warning: false
+#| echo: false
+#| fig-width: 14
+#| fig-height: 12
+
+fig3_final <- as.ggplot(fig3a) + fig3b +
+  plot_annotation(tag_levels = 'A')
+
+ggsave("figures/Figure3.pdf", plot = fig3_final, width = 20, height = 11)
+ggsave("figures/Figure3.png", plot = fig3_final, width = 20, height = 11, dpi = 300)```
+```
+
+```{r spearman-by-season-and-site}
+#| echo: false
+#| warning: false
+
+# Add site/season metadata to the correlation data frame
+prd.genome.correlation.meta <- prd.genome.correlation %>%
+  left_join(
+    counts.rhodo.genomes %>% distinct(sample, genome, site, season),
+    join_by(sample, genome)
+  )
+
+# Helper: run Spearman cor.test and extract rho, raw p, BH-adjusted p
+run_spearman <- function(df, group_var) {
+  df %>%
+    group_by(across(all_of(group_var))) %>%
+    summarise(
+      n     = n(),
+      ct    = list(cor.test(log_tpm, log_rhodopsin, method = "spearman")),
+      .groups = "drop"
+    ) %>%
+    mutate(
+      rho   = map_dbl(ct, ~ .x$estimate),
+      p_raw = map_dbl(ct, ~ .x$p.value),
+      p_adj = p.adjust(p_raw, method = "BH")
+    ) %>%
+    select(-ct)
+}
+
+season_corr <- run_spearman(prd.genome.correlation.meta, "season") %>%
+  rename(group = season) %>%
+  mutate(grouping = "Season")
+
+site_corr <- run_spearman(prd.genome.correlation.meta, "site") %>%
+  rename(group = site) %>%
+  mutate(grouping = "Site")
+
+group_corr_stats <- bind_rows(season_corr, site_corr) %>%
+  select(grouping, group, n, rho, p_raw, p_adj)
+
+library(knitr)
+kable(
+  group_corr_stats %>%
+    mutate(
+      rho   = round(rho, 3),
+      p_raw = format.pval(p_raw, digits = 3, eps = 1e-16),
+      p_adj = format.pval(p_adj, digits = 3, eps = 1e-16)
+    ),
+  col.names = c("Grouping", "Group", "N", "Spearman ρ", "p (raw)", "p (BH-adjusted)"),
+  caption = "Group-wise Spearman correlations between log(Total TPM) and log(Rhodopsin contribution)"
+)
 ```
 
 ### Thalassoarcheacaeae

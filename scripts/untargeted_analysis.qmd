@@ -187,6 +187,118 @@ fimbrial_proteins <- c(
 
 taxa <- c(
   "Pelagibacteraceae","Porticoccaceae","Poseidoniaceae","Puniceispirillaceae","Thalassarchaeaceae", "Pseudothioglobaceae", "Flavobacteriaceae")
+
+
+ko_class <- c(
+
+  # ABC transporters
+  K02004 = "ABC transporter",
+  K11085 = "ABC transporter",
+  K02037 = "ABC transporter",
+  K01998 = "ABC transporter (AA)",
+  K11960 = "ABC transporter (AA)",
+  K02049 = "ABC transporter (AA)",
+  K02003 = "ABC transporter",
+  K01999 = "ABC transporter (AA)",
+  K02042 = "ABC transporter",
+  K01990 = "ABC transporter",
+  K01995 = "ABC transporter (AA)",
+  K02031 = "ABC transporter (AA)",
+  K02012 = "ABC transporter",
+  K05813 = "ABC transporter",
+  K02033 = "ABC transporter (AA)",
+  K02036 = "ABC transporter",
+  K02054 = "ABC transporter (AA)",
+  K02035 = "ABC transporter (AA)",
+  K02058 = "ABC transporter",
+  K02002 = "ABC transporter (AA)",
+  K09817 = "ABC transporter",
+  K23536 = "ABC transporter",
+  K23537 = "ABC transporter",
+  K02038 = "ABC transporter",
+  K03523 = "ABC transporter",
+  K10020 = "ABC transporter",
+  K10018 = "ABC transporter",
+
+  # Amino-acid transporters (non-ABC)
+  K02030 = "AA transporter",
+  K09969 = "AA transporter",
+  K01998 = "AA transporter",
+  K01999 = "AA transporter",
+  K01996 = "AA transporter",
+
+  # Sugar / carbohydrate transporters
+  K10117 = "Sugar transporter",
+  K05813 = "Sugar transporter",       # also listed as ABC above
+  K17241 = "Sugar transporter",
+  K17315 = "Sugar transporter",
+
+  # Ion / metal transporters
+  K09013 = "Ion/metal transporter",
+  K03498 = "Ion/metal transporter",
+  K09816 = "Ion/metal transporter",
+  K03560 = "Ion/metal transporter",
+  K03832 = "Ion/metal transporter",
+  K03321 = "Ion/metal transporter",
+  K09696 = "Ion/metal transporter",
+  K01571 = "Ion/metal transporter",
+  K07300 = "Ion/metal transporter",
+  K07301 = "Ion/metal transporter",
+  K15987 = "Ion/metal transporter",
+  K03281 = "Ion/metal transporter",
+  K15268 = "Ion/metal transporter",
+  K11249 = "Ion/metal transporter",
+  K16091 = "Ion/metal transporter",
+
+  # Multidrug efflux pumps
+  K18990 = "Multidrug efflux",
+  K07798 = "Multidrug efflux",
+  K08217 = "Multidrug efflux",
+  K06902 = "Multidrug efflux",
+  K09808 = "Multidrug efflux",
+
+  # TRAP transporters
+  K21395 = "TRAP transporter",
+  K21393 = "TRAP transporter",
+  K11690 = "TRAP transporter",
+
+  # Peptide/nickel transporters (Opp/Nik)
+  K02031 = "AA transporter",
+  K02033 = "AA transporter",
+  K02034 = "AA transporter",
+  K02035 = "AA transporter",
+
+
+  # Osmolyte transporters
+  K02002 = "Osmolyte transporter",
+  K10117 = "Osmolyte transporter",
+
+  # MFS transporters
+  K08217 = "MFS transporter",
+  K06902 = "MFS transporter",
+  K07793 = "MFS transporter",
+  K07794 = "MFS transporter",
+  K07795 = "MFS transporter",
+
+  # Outer membrane / envelope systems
+  K03560 = "Envelope system",
+  K03562 = "Envelope system",
+  K03641 = "Envelope system",
+  K05807 = "Envelope system",
+  K06189 = "Envelope system",
+  K02195 = "Envelope system",
+  K06196 = "Envelope system",
+  K03980 = "Envelope system",
+  K07277 = "Envelope system",
+
+  # Other / uncategorized
+  K15383 = "Other transporter",
+  K05770 = "Other transporter",
+  K14393 = "Other transporter",
+  K16052 = "Other transporter",
+  K07127 = "Other transporter",
+  K02198 = "Other transporter"
+)
 ```
 
 ```{r read-data, cache.lazy=FALSE}
@@ -290,7 +402,7 @@ top30.rhodo.genomes <- counts.rhodo.genomes %>%
   filter(annotation == 'rhodopsin') %>%
   group_by(genome) %>%
   summarise(rhodo_tpm = sum(tpm), .groups = 'drop') %>%
-  slice_max(rhodo_tpm, n = 30) %>%
+  slice_max(rhodo_tpm, n = 50) %>%
   pull(genome)
 
 dominance <- counts.rhodo.genomes %>%
@@ -1184,134 +1296,27 @@ pheatmap(
 
 ```{r try-grouping-transporters}
 #| fig-height: 10
-ko_class <- c(
-
-  # ABC transporters
-  K02004 = "ABC transporter",
-  K11085 = "ABC transporter",
-  K02037 = "ABC transporter",
-  K01998 = "ABC transporter (AA)",
-  K11960 = "ABC transporter (AA)",
-  K02049 = "ABC transporter (AA)",
-  K02003 = "ABC transporter",
-  K01999 = "ABC transporter (AA)",
-  K02042 = "ABC transporter",
-  K01990 = "ABC transporter",
-  K01995 = "ABC transporter (AA)",
-  K02031 = "ABC transporter (AA)",
-  K02012 = "ABC transporter",
-  K05813 = "ABC transporter",
-  K02033 = "ABC transporter (AA)",
-  K02036 = "ABC transporter",
-  K02054 = "ABC transporter (AA)",
-  K02035 = "ABC transporter (AA)",
-  K02058 = "ABC transporter",
-  K02002 = "ABC transporter (AA)",
-  K09817 = "ABC transporter",
-  K23536 = "ABC transporter",
-  K23537 = "ABC transporter",
-  K02038 = "ABC transporter",
-  K03523 = "ABC transporter",
-  K10020 = "ABC transporter",
-  K10018 = "ABC transporter",
-
-  # Amino-acid transporters (non-ABC)
-  K02030 = "AA transporter",
-  K09969 = "AA transporter",
-  K01998 = "AA transporter",
-  K01999 = "AA transporter",
-  K01995 = "AA transporter",
-  K01996 = "AA transporter",
-
-  # Sugar / carbohydrate transporters
-  K10117 = "Sugar transporter",
-  K05813 = "Sugar transporter",       # also listed as ABC above
-  K17241 = "Sugar transporter",
-  K17315 = "Sugar transporter",
-
-  # Ion / metal transporters
-  K09013 = "Ion/metal transporter",
-  K03498 = "Ion/metal transporter",
-  K09816 = "Ion/metal transporter",
-  K03560 = "Ion/metal transporter",
-  K03832 = "Ion/metal transporter",
-  K03321 = "Ion/metal transporter",
-  K09696 = "Ion/metal transporter",
-  K01571 = "Ion/metal transporter",
-  K07300 = "Ion/metal transporter",
-  K07301 = "Ion/metal transporter",
-  K15987 = "Ion/metal transporter",
-  K03281 = "Ion/metal transporter",
-  K15268 = "Ion/metal transporter",
-  K11249 = "Ion/metal transporter",
-  K16091 = "Ion/metal transporter",
-
-  # Multidrug efflux pumps
-  K18990 = "Multidrug efflux",
-  K07798 = "Multidrug efflux",
-  K08217 = "Multidrug efflux",
-  K06902 = "Multidrug efflux",
-  K09808 = "Multidrug efflux",
-
-  # TRAP transporters
-  K21395 = "TRAP transporter",
-  K21393 = "TRAP transporter",
-  K11690 = "TRAP transporter",
-
-  # Peptide/nickel transporters (Opp/Nik)
-  K02031 = "AA transporter",
-  K02033 = "AA transporter",
-  K02034 = "AA transporter",
-  K02035 = "AA transporter",
-
-  # Osmolyte transporters
-  K02002 = "Osmolyte transporter",
-  K10117 = "Osmolyte transporter",
-
-  # MFS transporters
-  K08217 = "MFS transporter",
-  K06902 = "MFS transporter",
-  K07793 = "MFS transporter",
-  K07794 = "MFS transporter",
-  K07795 = "MFS transporter",
-
-  # Outer membrane / envelope systems
-  K03560 = "Envelope system",
-  K03562 = "Envelope system",
-  K03641 = "Envelope system",
-  K05807 = "Envelope system",
-  K06189 = "Envelope system",
-  K02195 = "Envelope system",
-  K06196 = "Envelope system",
-  K03980 = "Envelope system",
-  K07277 = "Envelope system",
-
-  # Other / uncategorized
-  K15383 = "Other transporter",
-  K05770 = "Other transporter",
-  K14393 = "Other transporter",
-  K16052 = "Other transporter",
-  K07127 = "Other transporter",
-  K02198 = "Other transporter"
-)
-
-# Add ko class
+# ── 1. Add ko class ───────────────────────────────────────────────────────────
 plot_data <- plot_data %>%
   mutate(class = ko_class[gene])
 
-# get average
+# ── 2. Build summary with taxonomy ───────────────────────────────────────────
 class_summary <- plot_data %>%
-  left_join(counts.rhodo.genomes %>% 
-              filter(genome %in% top30.rhodo.genomes) %>%
-              distinct(genome, genus), join_by(genome)) %>%
-  mutate(genome_family = paste0(genome, '_', family, '_', genus)) %>%
-  left_join(dominance, join_by(genome_family)) %>%
-  mutate(genome_family = case_when(
-      dominance == "coast" ~ paste0(genome_family,'*'),
-      TRUE ~ genome_family
-    )) %>%
+  left_join(
+    counts.rhodo.genomes %>%
+      filter(genome %in% top30.rhodo.genomes) %>%
+      distinct(genome, domain, family, genus) %>%
+      rename(tax_family = family, tax_genus = genus),
+    join_by(genome)
+  ) %>%
+  mutate(genome_family = paste0(genome, '_', tax_family, '_', tax_genus)) %>%
+  # left_join(dominance, join_by(genome_family)) %>%
+  # mutate(genome_family = case_when(
+  #   dominance == "coast" ~ paste0(genome_family, '*'),
+  #   TRUE ~ genome_family
+  # )) %>%
   filter(!is.na(class)) %>%
-  group_by(genome_family, class) %>%
+  group_by(genome_family, class, domain, tax_family, tax_genus) %>%
   summarise(
     mean_cor = mean(Correlation, na.rm = TRUE),
     Significance = case_when(
@@ -1323,66 +1328,42 @@ class_summary <- plot_data %>%
     .groups = "drop"
   )
 
-# significance matrix
+# Taxonomic order
+col_order <- class_summary %>%
+  distinct(genome_family, domain, tax_family, tax_genus) %>%
+  arrange(domain, tax_family, tax_genus) %>%
+  pull(genome_family)
+
+# ── 4. Build matrices (columns in taxonomic order) ───────────────────────────
+cor_matrix <- class_summary %>%
+  select(genome_family, class, mean_cor) %>%
+  pivot_wider(names_from = genome_family, values_from = mean_cor, values_fill = 0) %>%
+  column_to_rownames("class") %>%
+  as.matrix() %>%
+  .[, col_order]                                # apply taxonomic order
+
 sig_matrix <- class_summary %>%
   select(genome_family, class, Significance) %>%
-  pivot_wider(
-    names_from = genome_family,
-    values_from = Significance,
-    values_fill = ""
-  ) %>%
+  pivot_wider(names_from = genome_family, values_from = Significance, values_fill = "") %>%
   column_to_rownames("class") %>%
-  as.matrix()
+  as.matrix() %>%
+  .[, col_order]                                # same order
 
-# correlation matrix
-mat_class <- class_summary %>%
-  select(genome_family, class, mean_cor) %>%
-  pivot_wider(
-    names_from = genome_family,
-    values_from = mean_cor,
-    values_fill = 0
-  ) %>%
-  column_to_rownames("class") %>%
-  as.matrix()
-
-
-pal <- colorRampPalette(c("#2166AC", "#FFFFFF", "#D6604D"))(100)
-
-
-lim <- max(abs(mat_class), na.rm = TRUE)
+# ── 5. Plot ───────────────────────────────────────────────────────────────────
+pal    <- colorRampPalette(c("#2166AC", "#FFFFFF", "#D6604D"))(100)
 breaks <- seq(-1, 1, length.out = 101)
 
-
-# get col order from f6a
-hc_cols <- hclust(dist(t(top30enrichment.genome.matrix)))
-col_order <- hc_cols$order
-
-colnames_in_order <- colnames(top30enrichment.genome.matrix)[col_order]
-
-cols_use <- colnames_in_order[colnames_in_order %in% colnames(mat_class)]
-
-mat_class_ord <- mat_class[, cols_use, drop = FALSE]
-sig_matrix_ord <- sig_matrix[, cols_use, drop = FALSE]
-
-#col_order <- f6a$tree_col$order
-#colnames_in_order <- colnames(top30enrichment.genome.matrix)[col_order]
-#cols_use <- colnames_in_order[colnames_in_order %in% colnames(mat_class)]
-
-#mat_class_ord <- mat_class[, cols_use, drop = FALSE]
-#sig_matrix_ord <- sig_matrix[, cols_use, drop = FALSE]
-
-f6b <- pheatmap(
-  mat_class_ord,
-  color = pal,
-  breaks = breaks,
-  cellwidth = 15,
-  cellheight = 15,
-  cluster_rows = TRUE,
-  cluster_cols = FALSE,   # preserves your chosen order
-  treeheight_col = 5,
-  treeheight_row = 5,
-  display_numbers = sig_matrix_ord,
-  number_color = "black"
+f5a <- pheatmap(
+  cor_matrix,
+  color            = pal,
+  breaks           = breaks,
+  cellwidth        = 15,
+  cellheight       = 15,
+  cluster_rows     = TRUE,
+  cluster_cols     = FALSE,   # taxonomic order, no clustering on cols
+  treeheight_row   = 5,
+  display_numbers  = sig_matrix,
+  number_color     = "black"
 )
 ```
 
@@ -1400,6 +1381,94 @@ ggsave(
   units = "cm"     # or "cm"
 )
 
+```
+
+## Looking into three genomes
+
+```{r correlation-plot-pelagibacter-transporters}
+selected.genomes <- transporters.individual %>%
+  filter(genome %in% c("GCA_003279715.1", "GCF_943788075.1", "GCA_028097645.1"),
+         ko %in% c('K17315', 'K21395', 'K09969', 'K04641'))
+
+
+ko_targets <- c('K17315', 'K21395', 'K09969')  # everything except K04641
+
+# Prepare wide format once
+wide_data <- selected.genomes %>%
+  select(genome, perc, ko, sample) %>%
+  group_by(genome, sample, ko) %>%
+  summarise(sum_perc = sum(perc), .groups = 'drop') %>%
+  pivot_wider(names_from = ko, values_from = sum_perc, values_fill = 0) %>%
+  rename(
+    "K09969\nL-amino acid"            = K09969,
+    "K21395\ngtrC; TRAP-type"         = K21395,
+    "K17315\nglcE; glucose/mannose" = K17315
+  )
+
+highlight_pairs <- tibble(
+  genome = c("GCA_003279715.1", "GCF_943788075.1", "GCA_028097645.1"),
+  ko     = c("K17315\nglcE; glucose/mannose",
+             "K21395\ngtrC; TRAP-type",
+             "K09969\nL-amino acid")
+)
+
+# Build plot_data
+plot_data <- wide_data %>%
+  pivot_longer(cols = c("K09969\nL-amino acid",
+                        "K21395\ngtrC; TRAP-type",
+                        "K17315\nglcE; glucose/mannose"),
+               names_to = "ko", values_to = "value") %>%
+  left_join(highlight_pairs %>% mutate(correlated = TRUE),
+            by = c("genome", "ko")) %>%
+  mutate(correlated = replace_na(correlated, FALSE))
+
+# Conta ORF per genome x KO
+orf_counts <- selected.genomes %>%
+  distinct(orf, genome, ko) %>%
+  group_by(genome, ko) %>%
+  summarise(n_orf = n(), .groups = 'drop') %>%
+  mutate(ko = recode(ko,
+                     "K09969"  = "K09969\nL-amino acid",
+                     "K21395"  = "K21395\ngtrC; TRAP-type",
+                     "K17315"  = "K17315\nglcE; glucose/mannose"
+                     )
+         )
+
+# Aggiungi i conteggi a plot_data
+tplot_data <- plot_data %>%
+  left_join(orf_counts, by = c("genome", "ko"))
+
+f5b <- ggplot(tplot_data, aes(x = K04641, y = value)) +
+  geom_smooth(data = filter(tplot_data, correlated),
+              method = 'lm', formula = y ~ x, color = "steelblue") +
+  geom_smooth(data = filter(tplot_data, !correlated),
+              method = 'lm', formula = y ~ x, color = "grey70", linetype = "dashed") +
+  geom_point(aes(color = correlated), size = 1.5) +
+  geom_text(data = tplot_data %>% distinct(genome, ko, n_orf),
+            aes(label = paste0("n ORFs = ", n_orf)),
+            x = Inf, y = Inf, hjust = 1.1, vjust = 1.5,
+            size = 3, color = "black", inherit.aes = FALSE) +
+  scale_color_manual(values = c("TRUE" = "steelblue", "FALSE" = "grey70"),
+                     labels = c("TRUE" = "correlated", "FALSE" = "not correlated"),
+                     name = "") +
+  facet_grid(ko ~ genome) +
+  labs(title = "Distinct substrate transporters co-expressed with rhodopsin across Pelagibacter genomes",
+       x = "K04641 (rhodopsin)(%)", y = "Transporter(%)") +
+  theme_bw() +
+  theme(legend.position = "bottom")
+```
+
+```{r fig-5}
+#| fig-height: 10
+library(ggplotify)
+
+f5a_gg <- as.ggplot(f5a)
+f5b_gg <- as.ggplot(f5b)
+
+x <- wrap_plots(f5a_gg, f5b_gg, ncol = 1) + 
+  plot_layout(heights = c(1, 1)) + plot_annotation(tag_levels = 'A') # adjust ratio if one heatmap is taller
+
+ggsave('fig5.jpeg', x, width = 10, height = 16, units = "in", dpi = 300)
 ```
 
 ```{r respiration-markers}
@@ -1637,5 +1706,15 @@ filter(ko %in% c('K17486', 'K04641'),
   summarise(sum_perc = log(sum(perc)+1), .groups = 'drop') %>%
   pivot_wider(names_from = ko, values_from = sum_perc, values_fill = 1)
   
-  
+
+library(KEGGREST)
+
+ko_list <- c("K00001", "K00002", "K21395")  # your list
+
+ko_to_pathway <- lapply(ko_list, function(ko) {
+  res <- tryCatch(keggGet(ko)[[1]]$PATHWAY, error = function(e) NULL)
+  if (!is.null(res)) data.frame(KO = ko, pathway_id = names(res), pathway_name = unname(res))
+})
+
+pathway_table <- do.call(rbind, ko_to_pathway)
 ```

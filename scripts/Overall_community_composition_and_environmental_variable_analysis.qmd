@@ -464,7 +464,7 @@ fig1a <- ggplot() +
     x = "Longitude", y = "Latitude"
   ) +
   theme_minimal(base_size = 14) +
-  theme(legend.position = 'null')
+  theme(legend.position = 'right')
 
 ```
 
@@ -476,14 +476,14 @@ In this section I am showing the most relevant environmental variables for ENVIS
 #| warning: false
 #| echo: false
 #| fig-width: 14
-#| fig-height: 10
+#| fig-height: 12
 # Variables of interest
 vars <- c("Salinity", "temperature", "chla_tot", 
           "doc", "no3", "po4", "pa", "Turbidity")
 
 var_labs <- c(
-  "Salinity"    = "Salinity (PSU)",
-  "temperature" = "Temperature (°C)",
+  "Salinity"    = "Sal. (PSU)",
+  "temperature" = "Temp. (°C)",
   "chla_tot"    = "Chla (mg m-³)",
   "doc"         = "DOC (µM C)",
   "po4"         = "PO4³ (µmol L-1)",
@@ -516,7 +516,7 @@ fig1b <- metadata.long %>%
              group = interaction(season, site))) +
   geom_line(linewidth = 0.3) +
   geom_point(size = 2) +
-  scale_color_manual(values = c("blue", "green", "red")) +
+  scale_color_manual(name = "Season", values = c("blue", "green", "red")) +
   facet_grid(
     variable ~ site,
     scales = "free_y",
@@ -527,12 +527,12 @@ fig1b <- metadata.long %>%
   ) +
   labs(x = "Time (days)", y = "") +
   scale_x_continuous(breaks = c(1, 3, 5, 7)) +
-  theme_bw() +
+  theme_bw(base_size = 14) +
   theme(
     axis.text.x   = element_text(hjust = 1),
     legend.position = "none",
-    strip.text.x  = element_text(face = "bold", hjust = 0.5, size = 10),
-    strip.text.y  = element_text(face = "bold", hjust = 0.5, size = 10),
+    strip.text.x  = element_text(face = "bold", hjust = 0.5, size = 12),
+    strip.text.y  = element_text(face = "bold", hjust = 0.5, size = 12),
     strip.background = element_rect(fill = "white", colour = "black")
   )
 
@@ -543,7 +543,7 @@ fig1c <- metadata.long %>%
              group = interaction(season, site))) +
   geom_line(linewidth = 0.3) +
   geom_point(size = 2) +
-  scale_color_manual(values = c("blue", "green", "red")) +
+  scale_color_manual(name = "Season", values = c("blue", "green", "red")) +
   facet_grid(
     variable ~ site,
     scales = "free_y",
@@ -554,20 +554,23 @@ fig1c <- metadata.long %>%
   ) +
   labs(x = "Time (days)", y = "") +
   scale_x_continuous(breaks = c(1, 3, 5, 7)) +
-  theme_bw() +
+  theme_bw(base_size = 14) +
   theme(
     axis.text.x   = element_text(hjust = 1),
-    strip.text.x  = element_text(face = "bold", hjust = 0.5, size = 10),
-    strip.text.y  = element_text(face = "bold", hjust = 0.5, size = 10),
+    strip.text.x  = element_text(face = "bold", hjust = 0.5, size = 12),
+    strip.text.y  = element_text(face = "bold", hjust = 0.5, size = 12),
     strip.background = element_rect(fill = "white", colour = "black"),
     panel.background = element_rect(fill = "white", colour = NA),
     plot.background  = element_rect(fill = "white", colour = NA)
   )
 
-fig1a / (fig1b + fig1c) +
+fig1_final <- fig1a / (fig1b + fig1c) +
   plot_layout(heights = c(1, 1.5), guides = 'collect',
-              widths = c(1, 0.2))
+              widths = c(1, 0.2)) +
+  plot_annotation(tag_levels = 'A')
 
+ggsave("figures/Figure1.pdf", plot = fig1_final, width = 14, height = 12)
+ggsave("figures/Figure1.png", plot = fig1_final, width = 14, height = 12, dpi = 300)
 ```
 
 **Figure 1. Spatial and seasonal patterns of microbiological and chemical variables.** Boxplots display average and spread in variables in the offshore and coastal sampling sites during the three seasons. A) Prokaryotic abundance (ab), Chlorophyll a (Chla), and dissolved organic carbon (DOC); B) Ammonium (NH4), Nitrate (NO3), and Silicon dioxide (SiO2). 
@@ -1751,7 +1754,7 @@ fig2c + fig2d + plot_annotation(tag_levels = 'A') + plot_layout(guides = 'collec
 
 ```{r taxonomy-barplot-nmds-class-level}
 #| fig-width: 15
-#| fig-height: 10
+#| fig-height: 12
 fig2a + fig2b + fig2c + fig2d + plot_layout(guides = 'collect', ncol = 2, widths = c(2, 2)) + plot_annotation(tag_levels = 'A')
 ```
 
@@ -2107,6 +2110,7 @@ counts.rhodo.genomes %>%
 ```
 
 ```{r fig3a }
+#| warning: false
 fig3a <- counts.rhodo.genomes %>%
   filter(annotation == 'rhodopsin') %>%
   group_by(sample, site, season, day) %>%
@@ -2115,19 +2119,19 @@ fig3a <- counts.rhodo.genomes %>%
                                                               levels = c(
                                                                 "Winter", "Spring", "Summer"
                                                               )))) +
-  geom_point( size = 3) +
+  geom_point(size = 3) +
   geom_line(size = 1) +
-  theme(
-    legend.position = 'null',
-    strip.background = element_rect(fill = "white", colour = "black"),
-    # panel.background = element_rect(fill = "white", colour = NA),
-    # plot.background  = element_rect(fill = "white", colour = NA)
-  ) +
-  scale_colour_manual(values = c("blue", "green", "red")) +
+  scale_colour_manual(name = "Season", values = c("blue", "green", "red")) +
+  scale_x_continuous(breaks = c(1, 3, 5, 7)) +
   facet_wrap(~factor(site, levels = c("Offshore", "Coast"))) +
   labs(
-    x = "Time (day)",
+    x = "Time (days)",
     y = "Rhodopsin TPM"
+  ) +
+  theme_bw(base_size = 14) +
+  theme(
+    legend.position = 'none',
+    strip.background = element_rect(fill = "white", colour = "black")
   )
 ```
 
@@ -2156,15 +2160,10 @@ fig3b <- counts.rhodo.genomes %>%
     y = "proportion",
     fill = "Family (Class)"
   ) +
+  theme_bw(base_size = 14) +
   theme(
-    plot.title = element_text(hjust = 0, size = 10),
     axis.text.x = element_text(hjust = 1, angle = 45),
-    legend.title = element_text(size = 8),       # Smaller legend title
-  legend.text = element_text(size = 8),        # Smaller legend text
-  legend.key.size = unit(0.4, "cm"),
-  strip.background = element_rect(fill = "white", colour = "black"),
-    # panel.background = element_rect(fill = "white", colour = NA),
-    # plot.background  = element_rect(fill = "white", colour = NA)
+    strip.background = element_rect(fill = "white", colour = "black")
   ) +
   facet_grid(~factor(site, levels = c("Offshore", "Coast")), scale = "free_x")
 ```
@@ -3072,13 +3071,12 @@ res_permanova.prd <- adonis2(
   data = meta_ord_rhodo)
 
 nmds.prd <- ggplot() +
-  # polygons per season-site group
+  # polygon outlines per season-site group (no fill)
   geom_polygon(
     data = hulls,
     aes(x = NMDS1, y = NMDS2,
-        fill = interaction(season, site),
         group = interaction(season, site)),
-    alpha = 0.2, color = NA
+    fill = NA, color = "pink", linewidth = 0.4
   ) +
   # points
   geom_point(
@@ -3088,7 +3086,7 @@ nmds.prd <- ggplot() +
         color = factor(season, levels = c("Winter", "Spring", "Summer"))),
     size = 3
   ) +
-  # environmental vectors (use env_scores_sig if you want only significant ones)
+  # environmental vectors
   geom_segment(
     data = env_scores,
     aes(x = 0, y = 0, xend = NMDS1, yend = NMDS2),
@@ -3097,16 +3095,13 @@ nmds.prd <- ggplot() +
   geom_text(
     data = env_scores,
     aes(x = NMDS1 * 1.1, y = NMDS2 * 1.1, label = env),
-    size = 3
+    size = 4
   ) +
-  theme_minimal() +
+  theme_minimal(base_size = 14) +
   scale_color_manual(values = c("blue", "green", "red")) +
-  scale_fill_manual(values = c("lightblue", "lightgreen", "lightcoral",
-                               "lightpink", "lightgray", "lightyellow")) +
   xlab("NMDS1") +
   ylab("NMDS2") +
-  labs(color = "Season", fill = "Season-Site") +
-  guides(fill = "none")
+  labs(color = "Season", shape = "Site")
 
 
 # TPM → aggregate (sample×taxon) → log1p → Bray–Curtis → NMDS →
@@ -3119,17 +3114,13 @@ nmds.prd <- ggplot() +
 #| echo: false
 #| fig-width: 15
 #| fig-height: 10
-g1 <- as.ggplot(s12)
-
-((fig3a + fig3b) /
-  (nmds.prd + g1)) +
-  plot_layout(
-    heights = c(1, 1),
-    widths = c(1, 4)   # second column (fig D) gets double the width
-  ) +
+fig2_final <- (fig3a + fig3b) /
+  nmds.prd +
+  plot_layout(heights = c(1, 1)) +
   plot_annotation(tag_levels = 'A')
 
-
+ggsave("figures/Figure2.pdf", plot = fig2_final, width = 14, height = 12)
+ggsave("figures/Figure2.png", plot = fig2_final, width = 14, height = 12, dpi = 300)
 ```
 
 ## Supplementary information, tables and plots
