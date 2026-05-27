@@ -43,7 +43,9 @@ PfamTOM-block.1.RData
 env1_2.samplenames.csv
 env3.samplenames.csv
 heatmap.svg
-old_data_not_used/
+old_data_not_used.zip
 fig-kappa.qmd
 fig-kappa_files/
 run.magmap.30-9-2025
+.positai
+old_data_not_used/
