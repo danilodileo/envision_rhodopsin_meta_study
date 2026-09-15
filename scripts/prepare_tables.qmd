@@ -62,11 +62,10 @@ library(pheatmap)
 library(gridExtra)
 library(tidytext)  # per reorder_within() e scale_x_reordered()
 library(shadowtext)
-library(gt)
 library(reactable)
 ```
 
-```{r constant }
+```{r constant}
 # Set COG categories long names
 cog_mapping <- c(
    'A' = 'RNA_process',
@@ -108,7 +107,10 @@ sample_order <- c(
 
 ## Code explanation
 
-This quarto document is used in order to produce tables that can be used in the main analysis in other quarto documents (e.g. 'Fluctuation in photoheterotrophic community.qmd')
+This quarto document produces the intermediate summary tables consumed by the
+other analysis scripts in this repository
+(`Overall_community_composition_and_environmental_variable_analysis.qmd`,
+`fine-scale-analysis.qmd`, `untargeted_analysis.qmd`).
 
 The tables are produced from raw tables output of:
 
@@ -119,6 +121,11 @@ The tables are produced from raw tables output of:
 -   targeted hmmer profiles
 
 ## Formatting Count table
+
+Sample names encode site and season (e.g. `ENV2_D3_S6`: ENVISION cruise 2 =
+Spring, day 3, station S6 = Offshore); a fourth, non-cruise batch of triplicate
+mesocosm incubations is tagged `_M0`-`_M3` and is averaged down to a single
+`_M` value per ORF below before the two groups are combined.
 
 ```{r count-table}
 #| message: false
@@ -195,56 +202,47 @@ orfs <- counts %>%
 #| cache: false
 #| include: false
 #| warning: false
-# Read and format ncbi taxonomy table
+
+# GTDB reports one semicolon-delimited lineage string per genome
+# (e.g. "d__Bacteria;p__...;f__Pelagibacteraceae;..."); this splits it into
+# one ranked column per taxon and strips the "x__" rank prefix GTDB adds.
+parse_gtdb_taxonomy <- function(df) {
+  df %>%
+    separate(
+      gtdb_taxonomy,
+      into = c("domain", "phylum", "class", "order", "family", "genus", "species"),
+      sep = ";",
+      fill = "right"
+    ) %>%
+    mutate(across(
+      everything(),
+      ~ str_remove(., "^[a-z]__") %>% na_if("") %>% replace_na("unclassified")
+    ))
+}
+
+# NCBI/GTDB reference genomes (magmap's own taxonomy assignment)
 ncbi.taxonomy <- read_tsv('summary_tables/magmap.genome_metadata.tsv.gz',
          show_col_types = FALSE
          ) %>%
   select(accno, gtdb_taxonomy) %>%
-  separate(
-    gtdb_taxonomy,
-    into = c("domain", "phylum", "class", "order", "family", "genus", "species"),
-    sep = ";",
-    fill = "right"
-  ) %>%
-  mutate(across(
-    everything(),
-    ~ str_remove(., "^[a-z]__") %>% na_if("") %>% replace_na("unclassified")
-  )) %>%
+  parse_gtdb_taxonomy() %>%
   filter(!str_detect(accno, 'metaba*'),
          !str_detect(accno, 'conco*'))
 
-# get local archaea taxonomy
+# Locally assembled/binned genomes, classified separately with GTDB-Tk
+# (archaea and bacteria are reported in separate GTDB-Tk output files)
 arc.taxonomy <- read_tsv('gtdbtk.ar53.summary.tsv', show_col_types = FALSE) %>%
   select(user_genome, classification) %>%
   rename( accno = user_genome,
           gtdb_taxonomy = classification) %>%
-  separate(
-    gtdb_taxonomy,
-    into = c("domain", "phylum", "class", "order", "family", "genus", "species"),
-    sep = ";",
-    fill = "right"
-  ) %>%
-  mutate(across(
-    everything(),
-    ~ str_remove(., "^[a-z]__") %>% na_if("") %>% replace_na("unclassified")
-  )) %>%
+  parse_gtdb_taxonomy() %>%
   mutate(accno = str_remove(accno, ".fa"))
 
-# Get local bacteria taxonomy
 bac.taxonomy <- read_tsv('gtdbtk.bac120.summary.tsv', show_col_types = FALSE) %>%
   select(user_genome, classification) %>%
   rename( accno = user_genome,
           gtdb_taxonomy = classification) %>%
-  separate(
-    gtdb_taxonomy,
-    into = c("domain", "phylum", "class", "order", "family", "genus", "species"),
-    sep = ";",
-    fill = "right"
-  ) %>%
-  mutate(across(
-    everything(),
-    ~ str_remove(., "^[a-z]__") %>% na_if("") %>% replace_na("unclassified")
-  )) %>%
+  parse_gtdb_taxonomy() %>%
   mutate(accno = str_remove(accno, ".fa"))
 
 # Bind taxonomy together
@@ -256,7 +254,7 @@ write_tsv(taxonomy,'summary_tables/taxonomy.tsv.gz')
 
 ## Merge counts and taxonomy together
 
-```{r merge-counts-tax }
+```{r merge-counts-tax}
 #| message: false
 #| cache: false
 #| include: false
@@ -265,8 +263,6 @@ write_tsv(taxonomy,'summary_tables/taxonomy.tsv.gz')
 counts.tax <- counts %>%
   left_join(taxonomy, join_by(accno),
             relationship = "many-to-many")
-
-#write_tsv(counts.tax,'counts-taxonomy.tsv.gz')
 ```
 
 ## Eggnog-mapper functional table
@@ -278,31 +274,23 @@ counts.tax <- counts %>%
 #| warning: false
 # Add function and remove the previous annotation
 
-# spot which files have different number of columns
-files <- Sys.glob('summary_tables/*/*annotations.gz')
-
-# # Function to count columns in each file
+# eggnog-mapper annotation TSVs have either 21 or 24 columns depending on
+# whether the ORF matched a broader ("best_og_*") annotation level; group
+# files by column count so each group can be read with consistent names.
 count_columns <- function(file) {
-  num_cols <- read_tsv(file, comment = "##", show_col_types = FALSE) %>%
-  ncol()
-  tibble(file = file, num_cols = num_cols)
+  read_tsv(file, comment = "##", show_col_types = FALSE) %>% ncol()
 }
 
-# # Apply the function to each file and collect the results
-file_column_counts <- map_dfr(files, count_columns)
- 
-# Pull files with 21 columns
-file.with.21.columns <- file_column_counts %>%
-filter( num_cols == 21) %>%
-select(-num_cols) %>%
-pull(file)
+files_by_column_count <- function(files, n) {
+  tibble(file = files, num_cols = map_int(files, count_columns)) %>%
+    filter(num_cols == n) %>%
+    pull(file)
+}
 
- 
-# Pull files with 24 columns
-file.with.24.columns <- file_column_counts %>%
- filter( num_cols == 24) %>%
- select(-num_cols) %>%
- pull(file)
+# spot which files have different number of columns
+files <- Sys.glob('summary_tables/*/*annotations.gz')
+file.with.21.columns <- files_by_column_count(files, 21)
+file.with.24.columns <- files_by_column_count(files, 24)
 
 eggnog <-  rbind(
   file.with.24.columns %>% # load all annotated ORFs
@@ -327,31 +315,11 @@ eggnog <-  rbind(
 
 ```{r leftover-annotation}
 
-# spot which files have different number of columns
+# ORFs that eggnog-mapper's first pass missed, annotated in a follow-up run
+# (same column-count grouping as function-table above)
 files <- Sys.glob('summary_tables/missing-emapper-annotation/*annotations.gz')
-
-# # Function to count columns in each file
-count_columns <- function(file) {
-  num_cols <- read_tsv(file, comment = "##", show_col_types = FALSE) %>%
-  ncol()
-  tibble(file = file, num_cols = num_cols)
-}
-
-# # Apply the function to each file and collect the results
-file_column_counts <- map_dfr(files, count_columns)
- 
-# Pull files with 21 columns
-file.with.21.columns <- file_column_counts %>%
-filter( num_cols == 21) %>%
-select(-num_cols) %>%
-pull(file)
-
- 
-# Pull files with 24 columns
-file.with.24.columns <- file_column_counts %>%
- filter( num_cols == 24) %>%
- select(-num_cols) %>%
- pull(file)
+file.with.21.columns <- files_by_column_count(files, 21)
+file.with.24.columns <- files_by_column_count(files, 24)
 
 eggnog.annotation <-  file.with.21.columns %>%
     read_tsv(id = 'fname', comment = "##", show_col_types = FALSE) %>%
@@ -380,7 +348,7 @@ write_tsv(all_data, 'kofam_annotation_top30genomes.tsv.gz')
 
 ## Targeted hmmer profiles table
 
-```{r target-annotation-table }
+```{r target-annotation-table}
 #| message: false
 #| cache: false
 #| include: false
@@ -423,14 +391,14 @@ annotation <- read_delim("targeted-genes.csv",delim = ";", col_names = TRUE,
 #| cache: false
 #| include: false
 #| warning: false
-# Load meatadata Coast and Offshore
+# Load metadata (Coast and Offshore sites)
 metadata <- read_excel("data/metatada_summarized.xlsx") %>%
   select(-bb, -po4, -nh4, -sio2, -tin, -no3, -chla_less_3um, -chla_min_3um, -chla_total, -ab, -no2)
 
-erick.metadata <- read_excel('data/all_Superficial_Metadata_ENVISION.xlsx') %>%
+superficial.metadata <- read_excel('data/all_Superficial_Metadata_ENVISION.xlsx') %>%
   select(-cruise, -cruise_station, -Season_Station, -Condition, -day, -station, -Depth, -Bacterial_biomass)
 
-more.metadata <- erick.metadata %>%
+envision.metadata <- superficial.metadata %>%
   left_join(metadata, join_by(sample)) %>%
   rename(temperature = "Temperature", tin = 'TIN',
          chla_tot = "Chlorophyll_a",
@@ -439,14 +407,15 @@ more.metadata <- erick.metadata %>%
          nh4 = 'NH4', no2 = "NO2",
          chla_less_3um = 'Chla_0.2', chla_min_3um = 'Chla_3')
 
-write_tsv(more.metadata, './data/envision_metadata.tsv.gz')
+write_tsv(envision.metadata, './data/envision_metadata.tsv.gz')
 ```
 
 ## Create complete count table
 
 ```{r create-complete-count-table}
-# Read count table
-counts <- read_tsv('counts-taxonomy.tsv.gz', show_col_types = FALSE) %>%
+# Add day and site/season filters on top of the counts+taxonomy table
+# built above (counts.tax, from the "Merge counts and taxonomy" section)
+counts <- counts.tax %>%
   mutate(
     day = case_when(
       str_detect(sample, "D0") ~ "0",
@@ -465,7 +434,7 @@ counts <- counts %>%
 
 
 # create one whole table
-eggnog.total <- bind_rows(eggnog, filtered.eggnog.annotation)
+eggnog.total <- bind_rows(eggnog, eggnog.annotation)
 
 # Join targeted annotation table to counts and taxonomy
 counts <- counts %>% left_join(eggnog.total, join_by(orf))

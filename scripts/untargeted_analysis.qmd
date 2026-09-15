@@ -29,7 +29,7 @@ ggplot2::theme_set(ggplot2::theme_bw())
 
 ## Data preparation
 
-```{r libraries }
+```{r libraries}
 #| label: libraries
 #| message: false
 #| cache: false
@@ -72,7 +72,6 @@ library(pheatmap)
 library(gridExtra)
 library(tidytext)  # per reorder_within() e scale_x_reordered()
 library(shadowtext)
-library(gt)
 library(reactable)
 library(clusterProfiler)
 library(pathview)
@@ -394,7 +393,7 @@ group_by(genome, sample) %>%
 # )
 ```
 
-```{r renormalized-tables }
+```{r renormalized-tables}
 #| include: false
 #| warning: false
 #| echo: false
@@ -517,7 +516,7 @@ dotplot(gsea, showCategory = 25, color = "NES") + plot_annotation(title = "KO en
 
 ```
 
-```{r family-level-enrichment-analysis }
+```{r family-level-enrichment-analysis}
 #| include: false
 #| warning: false
 #| echo: false
@@ -619,7 +618,7 @@ pheatmap(
 )
 ```
 
-```{r genome-level-enrichment-analysis-pathways }
+```{r genome-level-enrichment-analysis-pathways}
 #| warning: false
 #| echo: false
 #| fig-width: 17
@@ -742,7 +741,7 @@ s1 <- pheatmap(
 
 ```
 
-```{r fig6-enrichment }
+```{r fig6-enrichment}
 #| warning: false
 #| echo: false
 #| fig-width: 10
@@ -1160,7 +1159,7 @@ pheatmap(
 
 ## Correlation analysis - transporters
 
-```{r transporters-prepare-table }
+```{r transporters-prepare-table}
 transporters.individual <- individual.abundance %>%
   filter(ko %in% transporters | annotation == "rhodopsin") %>%
   mutate(curated_kegg_module = case_when(
@@ -1517,8 +1516,6 @@ f5b <- ggplot(tplot_data, aes(x = K04641, y = value)) +
 
 ```{r fig-5}
 #| fig-height: 10
-library(ggplotify)
-
 f5a_gg <- as.ggplot(f5a)
 f5b_gg <- as.ggplot(f5b)
 
@@ -1634,6 +1631,12 @@ tpm_df <-
 
 plot_df <- bind_rows(prd_df, tpm_df, prd_df.total)
 
+# group_split(family) sorts alphabetically, giving the fixed index below —
+# used by the per-family chunks that follow (order chosen for narrative flow,
+# not index order):
+#   [[1]] CABXJW01            [[4]] Porticoccaceae      [[7]] Puniceispirillaceae
+#   [[2]] D2472               [[5]] Poseidoniaceae      [[8]] Rhodobacteraceae
+#   [[3]] Pelagibacteraceae   [[6]] Pseudothioglobaceae [[9]] Thalassarchaeaceae
 plots_by_family <-
   plot_df %>%
   group_split(family) %>%
@@ -1760,24 +1763,3 @@ plots_by_family[[9]] + facet_wrap(metric ~ genus+genome + factor(site, levels = 
 
 **Thalassarchaeaceae.**\
 Thalassarchaeaceae genomes (four, all belonging to the same genus) displayed generally higher genome-wide transcription offshore than at the coastal site, with similar seasonal patterns across genomes and one genome showing markedly higher activity (peaking offshore in spring). Relative investment in rhodopsin expression varied widely among genomes, ranging from low summer values (\~2%) to maxima of \~10–50%. Despite this variability, all genomes exhibited a significant negative correlation between rhodopsin investment and genome-wide transcription (FDR \< 0.05). Correlation analyses with environmental variables separated the genomes into three clusters, with one genome showing a significant positive association with daylight and all genomes displaying positive trends with prokaryotic abundance, chlorophyll a, turbidity, and daylight. No significant associations were detected between rhodopsin investment and metabolic pathways or transporter functions.
-
-```{r DMSP}
-individual.abundance %>%
-filter(ko %in% c('K17486', 'K04641'),
-       genome %in% top30.rhodo.genomes) %>%
-  group_by(sample, genome, ko) %>%
-  summarise(sum_perc = log(sum(perc)+1), .groups = 'drop') %>%
-  pivot_wider(names_from = ko, values_from = sum_perc, values_fill = 1)
-  
-
-library(KEGGREST)
-
-ko_list <- c("K00001", "K00002", "K21395")  # your list
-
-ko_to_pathway <- lapply(ko_list, function(ko) {
-  res <- tryCatch(keggGet(ko)[[1]]$PATHWAY, error = function(e) NULL)
-  if (!is.null(res)) data.frame(KO = ko, pathway_id = names(res), pathway_name = unname(res))
-})
-
-pathway_table <- do.call(rbind, ko_to_pathway)
-```

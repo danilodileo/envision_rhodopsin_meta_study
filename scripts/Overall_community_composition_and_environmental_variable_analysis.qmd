@@ -613,7 +613,7 @@ ggsave("figures/Figure1.png", plot = fig1_final, width = 14, height = 12, dpi = 
 
 In this section I want to give an overview of the output from nf-core/magmap. Show mapping rate, normalized mapping rate (compare to eukaryotic content) and depletion rate.
 
-```{r table-magmap-performances }
+```{r table-magmap-performances}
 #| echo: false
 
 stats %>%
@@ -636,7 +636,7 @@ stats %>%
 
 ### Magmap performances - stack bar figure
 
-```{r magmap-performances }
+```{r magmap-performances}
 #| warning: false
 #| echo: false
 stats %>%
@@ -660,7 +660,7 @@ stats %>%
 
 ### Summary of genomes used in nf-core/magmap
 
-```{r summary-genome-overview }
+```{r summary-genome-overview}
 #| label: summary-genome-overview
 #| warning: false
 #| echo: false
@@ -751,7 +751,7 @@ gven2 / gven1 +
 
 In this section I want to see at different taxonomical level how different the taxa are when plotting the relative expression of the total community and genomes actively expressing rhodopsin.
 
-```{r taxonomy-plots-phylum }
+```{r taxonomy-plots-phylum}
 #| warning: false
 #| fig-width: 17
 #| fig-height: 8
@@ -840,7 +840,7 @@ s2 + s3 + plot_layout(guides = 'collect') + plot_annotation(tag_level = 'A', tit
 
 ### Class level - taxonomy bar plots
 
-```{r taxonomy-plots-class }
+```{r taxonomy-plots-class}
 #| warning: false
 #| fig-width: 17
 #| fig-height: 8
@@ -929,7 +929,7 @@ s4 + s5 + plot_layout(guides = 'collect') + plot_annotation(tag_level = 'A', tit
 
 ### Family level - taxonomy bar plots
 
-```{r taxonomy-plots-family }
+```{r taxonomy-plots-family}
 #| warning: false
 #| fig-width: 17
 #| fig-height: 8
@@ -1022,7 +1022,7 @@ s6 + s7 + plot_layout(guides = 'collect') + plot_annotation(tag_level = 'A', tit
 
 I decided to have an averaged plot by season to have an easier way yo read the figure. I do it at Class level.
 
-```{r average-tax-plot-class-level }
+```{r average-tax-plot-class-level}
 #| warning: false
 #| fig-width: 17
 #| fig-height: 8
@@ -1123,7 +1123,7 @@ fig2a + fig2b + plot_layout(guides = 'collect') + plot_annotation(tag_level = 'A
 
 #### Class level
 
-```{r supplementary-4-5-6}
+```{r supplementary-figure-5}
 #| fig-width: 15
 #| fig-height: 8
 # proportion class total community
@@ -1173,19 +1173,12 @@ s4 / s5 + plot_annotation(tag_levels = 'A')
 
 #### Family level - Only genomes with rhodopsin
 
-```{r supplementary-6}
+```{r supplementary-figure-6}
 #| fig-width: 15
 #| fig-height: 8
 #| warning: false
-# proportion family genomes-containig-rhodopsin for the top 12 family
+# top 12 family by total rhodopsin TPM
 top.12.tax <- counts.rhodo.genomes %>%
-  filter(annotation == 'rhodopsin') %>%
-  group_by(family) %>%
-  summarise(sum_tpm = sum(tpm), .groups = 'drop') %>%
-  slice_max(sum_tpm, n = 12)
-
-# proportion family expressing most rhodopsin
-prd.top.12.tax <- counts.rhodo.genomes %>%
   filter(annotation == 'rhodopsin') %>%
   group_by(family) %>%
   summarise(sum_tpm = sum(tpm), .groups = 'drop') %>%
@@ -1325,7 +1318,7 @@ famwithoutrhodo <- counts.rhodo.genomes %>%
 
 This section I will report NMDS for overall community and rhodopsin community at Class level.
 
-```{r calc-nmds-bray-curtis }
+```{r calc-nmds-bray-curtis}
 #| label: calc-nmds-bray-curtis
 #| include: false
 #| echo: false
@@ -1438,7 +1431,7 @@ res_permanova.rhodo.genomes <- adonis2(
 # TPM → aggregate → log1p → Bray–Curtis → NMDS → PERMANOVA → betadisper
 ```
 
-```{r NMDS_genome-level-bray-curtis }
+```{r NMDS_genome-level-bray-curtis}
 # 1. Build WIDE TPM matrix (sample × class)
 wide.tpm.total <- counts %>%
   group_by(sample, genome) %>%
@@ -2141,7 +2134,7 @@ counts.rhodo.genomes %>%
   facet_grid(~factor(site, levels = c("Offshore", "Coast")), scale = "free_x")
 ```
 
-```{r fig3a }
+```{r fig3a}
 #| warning: false
 fig3a <- counts.rhodo.genomes %>%
   filter(annotation == 'rhodopsin') %>%
@@ -2272,7 +2265,7 @@ Contribution to rhodopsin expression from top 12 family expressing rhodopsin (b)
 
 The 12 family they contribute for \~90% of total rhodopsin expression of the dataset.
 
-```{r pie-charts-family-level }
+```{r pie-charts-family-level}
 #| fig-width: 15
 #| fig-height: 10
 #| warning: false
@@ -2373,7 +2366,7 @@ s9bcdef <- lapply(top5_family, make_family_pie, data = counts.rhodo.genomes, pal
 
 ## 5. Heatmaps of top 30 genomes with active rhodopsin expression
 
-```{r heatmaps-based-on-top-30-genomes-expressing-rhodopsin }
+```{r heatmaps-based-on-top-30-genomes-expressing-rhodopsin}
 #| fig-width: 15
 #| fig-height: 8
 #| warning: false
@@ -2391,7 +2384,7 @@ draw(ht_list, heatmap_legend_side = "right")
 
 ### Figure 4 Environmental variables correlation rhodopsin and family level
 
-```{r fig-spearman-prd-env }
+```{r fig-spearman-prd-env}
 #| label: fig-spearman-prd-env
 #| warning: false
 #| echo: false
@@ -2579,7 +2572,7 @@ s12 <- pheatmap(
   )
 ```
 
-```{r fig-spearman-family-w-prd }
+```{r fig-spearman-family-w-prd}
 #| label: fig-spearman-family-w-prd
 #| warning: false
 #| echo: false
@@ -2750,7 +2743,7 @@ s13
 
 **How much variance in the gene table can be explained by environmental variables?**
 
-```{r rda-prd-family-level-all-genomes-transcription }
+```{r rda-prd-family-level-all-genomes-transcription}
 #| warning: false
 #| echo: false
 family_class <- counts.rhodo.genomes %>%
@@ -3006,7 +2999,7 @@ rda.rhodo <- ggplot() +
 
 ## 8. NMDS + envfit() rhodopsin genes
 
-```{r NMDS_ENVFIT }
+```{r NMDS_ENVFIT}
 expr_rhodo <- counts.rhodo.genomes %>%
   filter(annotation == 'rhodopsin') %>%
   # mutate(
@@ -3155,134 +3148,6 @@ ggsave("figures/Figure2.pdf", plot = fig2_final, width = 14, height = 12)
 ggsave("figures/Figure2.png", plot = fig2_final, width = 14, height = 12, dpi = 300)
 ```
 
-## Supplementary information, tables and plots
-
-### Verrucomicriobiota
-
-```{r Verrucomicrobiota-investigation}
-#| echo: false
-#| warning: false
-#| fig-width: 15
-#| fig-height: 9
-counts.rhodo.genomes %>%
-   filter(family == 'Coraliomargaritaceae', annotation %in% c('pyrcarb', 'rhodopsin')) %>%
-   group_by(genus,sample, genome, season, site, annotation) %>%
-  summarise(sum_tpm = sum(tpm), .groups = "drop") %>%
-  #group_by(sample, genome, season, site, annotation) %>%
-  #summarise(mean_tpm = mean(sum_tpm), .groups = "drop") %>%
-  ggplot(aes(
-    x = factor(sample, levels = sample_order), #factor(season, levels = c("Winter", "Spring", "Summer")),
-    y = sum_tpm,
-    fill = genome
-  )) +
-  geom_col(color = "black", position = 'dodge') +
-  #scale_fill_manual(values = family_class_colors) +
-  labs(
-    title = "Rhodopsin expression at family level",
-    x = "Season",
-    y = "TPM",
-    fill = "genome"
-  ) +
-  theme(
-    plot.title = element_text(hjust = 0, size = 10),
-    axis.text.x = element_text(hjust = 1, angle = 45),
-    legend.title = element_text(size = 8),       # Smaller legend title
-  legend.text = element_text(size = 8),        # Smaller legend text
-  legend.key.size = unit(0.4, "cm")
-  ) +
-  facet_grid(~genus~annotation~factor(site, levels = c("Offshore", "Coast")), scale = "free_x")
-```
-
-Verrucomicrobiota is a Phylum of 5 family all expressing rhodopsin.
-
-These families are 'CAJWYM01' 'MB11C04' 'Opitutaceae' 'DEV007' 'Coraliomargaritaceae' count for 15 genomes.
-
-The family expressing most rhodopsin Coraliomargaritaceae: curious it is only present in summer and ir peaks \~6.5k tpm. Coraliomargaritaceae accounts for 6 genomes all expressing rhodopsin.
-
-### PufM analysis
-
-We found 505 distinct orf encoding for pufM in comparison, distinct ORFs for rhodopsin are 3,879.
-
-28 genomes (10 families and 5 classes) have both pufM and prd but only 1 expressing both in my dataset.
-
-*Class:*
-
-Chloroflexia\
-Bacteroidia\
-Alphaproteobacteria\
-Gammaproteobacteria\
-Anaerolineae
-
-Family:
-
-Roseiflexaceae\
-Schleiferiaceae\
-Sphingomonadaceae\
-Burkholderiaceae\
-Caldilineaceae\
-Rhodobacteraceae\
-Caulobacteraceae\
-Halieaceae\
-Chromatiaceae\
-Puniceispirillaceae
-
-Active ORFs in the dataset are 30 expressed by 4 families and 29 genomes.
-
-```{r pufm expression }
-# use this code to explore pufm genes
-# counts %>%
-#   filter(annotation == 'pufm') %>%
-#   group_by(sample, family) %>%
-#   summarise(sum_tpm = sum(tpm), .groups = 'drop') %>%
-#   summarise(mean = mean(sum_tpm))
-#   mutate(sample = factor(sample, levels = sample_order)) %>%
-#   ggplot(aes(x=sample, y=sum_tpm, fill = family)) +
-#   geom_col(color = 'black') +
-#   labs(title = 'PufM expression across samples', subtitle = 'n.orf: 30, n.genomes:29, n.family:9') +
-#   theme(axis.text.x = element_text(hjust = 1, angle = 45))
-  
-# find active shared genomes for pufm and rhodopsin
-t0 <- funtax %>%
-  filter(annotation == 'pufm') %>%
-  distinct(genome)
-
-t1 <- funtax %>%
-  filter(annotation == 'rhodopsin') %>%
-  distinct(genome)
-```
-
-```{r pufm-summary-genome-overview }
-#| warning: false
-#| echo: false
-#| fig-width: 15
-#| fig-height: 9
-taxon_summary <- function(df, value_col) {
-  df %>%
-    distinct(genome, .keep_all = TRUE) %>%
-    summarise(
-      genomes = n(),
-      species = n_distinct(species),
-      genus = n_distinct(genus),
-      family = n_distinct(family),
-      order = n_distinct(order),
-      class = n_distinct(class),
-      phylum = n_distinct(phylum),
-      domain = n_distinct(domain)
-    ) %>%
-    pivot_longer(everything(), names_to = "taxon", values_to = value_col)
-}
-
-e <- funtax %>% filter(annotation == "pufm") %>% taxon_summary("pufm")
-f <- counts %>% filter(annotation == "pufm") %>% taxon_summary("Active pufm")
-
-pufm.summary_table <- reduce(list(e,f), left_join, by = "taxon")
-
-#write_tsv(summary_table, 'run.magmap.30-9-2025/summary_tables/summary_table_genomes.tsv')
-
-pufm.summary_table %>%
-  gt()
-```
-
 ## 9 References
 
 ```{r tbl-cite-packages}
@@ -3294,52 +3159,4 @@ pufm.summary_table %>%
 
 cite_packages(output = "table", pkgs = "Session", out.dir = getwd()) %>%
   kable()
-```
-
-## 10. Tests
-
-With my eggnog mapper analysis I couldn't annotate 37 genomes. Among these, 5 have rhodopsin but as it is shown in the plot, their rhodopsin expression is really low. Only one genome, metabat2.997 a Poseidoniaceae, showed to be low in rhodopsin, with a peak in spring coast of 15 tpm and the rest of samples are \< 5 tpm. the total tpm instead is higher for the metabat2.912 a Bacteroidia (CAJXBJ01), \~9k tpm in one timepoint in winter but very low rhodopsin.
-
-```{r test }
-#| warning: false
-#| echo: false
-#| fig-width: 15
-#| fig-height: 9
-no.anno.genomes <- c('metabat2.815', 'metabat2.967', 'metabat2.968', 'metabat2.989',
-                     'metabat2.971', 'GCA_040401095.1', 'metabat2.715', 'metabat2.942',
-                     'metabat2.927', 'GCF_963975415.1', 'metabat2.976', 'metabat2.8',
-                     'metabat2.1917', 'metabat2.897', 'metabat2.982', 'metabat2.972',
-                     'metabat2.907', 'metabat2.909', 'metabat2.922', 'metabat2.997',
-                     'GCA_040752415.1', 'metabat2.864', 'metabat2.912', 'metabat2.457',
-                     'metabat2.445', 'metabat2.933', 'metabat2.955', 'metabat2.949',
-                     'metabat2.969', 'metabat2.875', 'GCA_040398785.1', 'metabat2.905',
-                     'metabat2.959')
-
-t0 <- individual.abundance %>%
-  filter( genome %in% no.anno.genomes,
-          annotation == 'rhodopsin') %>%
-  group_by(sample, genome, family) %>%
-  summarise(perc = sum(perc), .groups = 'drop') %>%
-  ggplot(aes(x=factor(sample, levels = sample_order), y=perc, fill = family)) +
-  geom_col(position = 'dodge') +
-  scale_fill_manual(values = cb_palette) +
-  facet_wrap(~genome, scales = 'free') +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-  labs(title = 'Rhodopsin contribution from 5 genomes without eggnog annotation',
-       x = 'Sample')
-
-
-t1 <- counts.rhodo.genomes %>%
-  filter( genome %in% no.anno.genomes) %>%
-  group_by(sample, genome, family) %>%
-  summarise(sum_tpm = sum(tpm), .groups = 'drop') %>%
-  ggplot(aes(x=factor(sample, levels = sample_order), y=sum_tpm, fill = family)) +
-  geom_col(position = 'dodge') +
-  scale_fill_manual(values = cb_palette) +
-  facet_wrap(~genome, scales = 'free') +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 5)) +
-  labs(title = 'Total genome expression from 5 genomes without eggnog annotation',
-       x = 'Sample')
-  
-t0 + t1 + plot_layout(guides = 'collect')
 ```

@@ -271,7 +271,7 @@ group_by(genome, sample) %>%
 
 ```
 
-```{r renormalized-tables }
+```{r renormalized-tables}
 #| include: false
 #| warning: false
 #| echo: false
@@ -815,7 +815,7 @@ ra_genus <- rowAnnotation(
 )
 ```
 
-```{r heatmaps-based-on-top-30-genomes-expressing-rhodopsin }
+```{r heatmaps-based-on-top-30-genomes-expressing-rhodopsin}
 #| fig-width: 15
 #| fig-height: 10
 #| warning: false
@@ -845,20 +845,6 @@ dev.off()
 ```
 
 **Fig. 4 Genome transcription level and rhodopsin expression dynamics across sites and seasons.** Heatmaps show the (left) genome transcription (TPM), (middle) rhodopsin TPM within genomes, and (right) rhodopsin expression as % of total TPM of the 30 genomes expressing most rhodpsin. TPM where rescaled using logarithmic for visualisation purposes. Rows represent genomes, columns represent samples ordered by site (light blue, orange), season (winter-gray,spring-yellow, summer-red), and day (shade of grey 1, 3, 5, 7). Families with strong seasonal rhodopsin expression (Porticoccaceae, Poseidonaceae, and Puniceispirillaceae) contrast with high total transcript activity but weakly expressing groups (SAR11/Pelagibacteraceae, Thalassarchaeaceae). The strongest rhodopsin relative transcription occur in coastal summer (Days 3–5). GCA_018607525.1, GCA_024644585.1
-
-```{r save-heatmap-as-svg}
-
-# svglite("top30_rhodopsin_heatmaps.svg", width = 14, height = 10)
-# 
-# draw(
-#   ht_list,
-#   heatmap_legend_side = "bottom",
-#   annotation_legend_side = "bottom",
-#   merge_legend = TRUE
-# )
-# 
-# dev.off()
-```
 
 ```{r genome-size-plot}
 genome_size$genome_with_family <- reorder(genome_size$genome_with_family, genome_size$size)
@@ -1171,7 +1157,7 @@ pheatmap(
 
 ```
 
-```{r spearman-genome-prd-env }
+```{r spearman-genome-prd-env}
 #| fig-height: 10
 #| fig-width: 12
 #| warning: false
@@ -1422,7 +1408,7 @@ kable(
 
 ### Thalassoarcheacaeae
 
-```{r thalasso-top30kos }
+```{r thalasso-top30kos}
 #| fig-width: 10
 #| fig-height: 9
 #| warning: false
@@ -1660,7 +1646,7 @@ thala.bubble
 
 ### Porticoccaceae
 
-```{r GCA_018607525.1-summer-top30kos }
+```{r GCA_018607525.1-summer-top30kos}
 #| fig-width: 10
 #| fig-height: 9
 #| warning: false
@@ -2035,7 +2021,7 @@ ggsave("figures/porti-bubble-visualization.png", plot = porti.bubble.viz, width 
 
 I am digging into GCA_028226535.1 and GCA_028097645.1
 
-```{r GCA_028226535.1-summer-top30kos }
+```{r GCA_028226535.1-summer-top30kos}
 #| fig-width: 10
 #| warning: false
 #| echo: false
@@ -2215,7 +2201,7 @@ ggplot(aes(x = factor(kegg_ko, levels = join.kos.535),
   )
 ```
 
-```{r GCA_028097645.1-summer-top30kos }
+```{r GCA_028097645.1-summer-top30kos}
 #| fig-width: 10
 #| warning: false
 #| echo: false
