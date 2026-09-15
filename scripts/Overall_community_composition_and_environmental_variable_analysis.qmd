@@ -464,7 +464,37 @@ fig1a <- ggplot() +
     x = "Longitude", y = "Latitude"
   ) +
   theme_minimal(base_size = 14) +
-  theme(legend.position = 'right')
+  theme(legend.position = 'right') +
+  # Panel tag drawn as an in-panel annotation rather than patchwork's
+  # auto tag_levels/labs(tag=): once fig1a carries a nested inset_element,
+  # the patchwork tag intermittently drops after the PDF+PNG ggsave pair.
+  annotate("text", x = -9.97, y = 42.365, label = "A",
+           fontface = "bold", size = 7, hjust = 0, vjust = 1, color = "black")
+
+# --- Locator inset: Europe / Atlantic context, with zoom-in box ---
+# Reuses `world` (rnaturalearth, already loaded above) instead of a new query.
+locator_box <- st_as_sfc(st_bbox(c(xmin = bbox[1], xmax = bbox[2],
+                                    ymin = bbox[3], ymax = bbox[4]),
+                                  crs = 4326))
+
+fig1a_locator <- ggplot() +
+  geom_sf(data = world, fill = "grey80", color = "grey45", linewidth = 0.15) +
+  geom_sf(data = locator_box, fill = NA, color = "red", linewidth = 0.9) +
+  coord_sf(xlim = c(-15, 5), ylim = c(35, 55), expand = FALSE) +
+  theme_void() +
+  theme(
+    panel.background = element_rect(fill = "aliceblue", color = NA),
+    panel.border     = element_rect(fill = NA, color = "grey20", linewidth = 0.6),
+    plot.margin      = margin(1, 1, 1, 1)
+  )
+
+# Overlay the locator as an inset in the empty ocean corner of the main map
+fig1a <- fig1a +
+  inset_element(
+    fig1a_locator,
+    left = 0.02, bottom = 0.02, right = 0.34, top = 0.40,
+    align_to = "panel", ignore_tag = TRUE
+  )
 
 ```
 
@@ -525,7 +555,7 @@ fig1b <- metadata.long %>%
       site     = site_labs
     )
   ) +
-  labs(x = "Time (days)", y = "") +
+  labs(x = "Time (days)", y = "", tag = "B") +
   scale_x_continuous(breaks = c(1, 3, 5, 7)) +
   theme_bw(base_size = 14) +
   theme(
@@ -552,7 +582,7 @@ fig1c <- metadata.long %>%
       site     = site_labs
     )
   ) +
-  labs(x = "Time (days)", y = "") +
+  labs(x = "Time (days)", y = "", tag = "C") +
   scale_x_continuous(breaks = c(1, 3, 5, 7)) +
   theme_bw(base_size = 14) +
   theme(
@@ -564,10 +594,12 @@ fig1c <- metadata.long %>%
     plot.background  = element_rect(fill = "white", colour = NA)
   )
 
+# Tags are set manually via labs(tag=...) on fig1a/fig1b/fig1c above,
+# since auto tag_levels mis-numbers panels once fig1a carries a nested inset.
 fig1_final <- fig1a / (fig1b + fig1c) +
   plot_layout(heights = c(1, 1.5), guides = 'collect',
               widths = c(1, 0.2)) +
-  plot_annotation(tag_levels = 'A')
+  plot_annotation(theme = theme(plot.tag = element_text(face = "bold", size = 18)))
 
 ggsave("figures/Figure1.pdf", plot = fig1_final, width = 14, height = 12)
 ggsave("figures/Figure1.png", plot = fig1_final, width = 14, height = 12, dpi = 300)

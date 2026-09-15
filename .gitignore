@@ -12,6 +12,7 @@ RAxML_bootstrap*
 !*.fastq*.makecall
 *.fna
 *.pdf
+!figures/*.pdf
 *.maf
 *.maf.gz
 .RData
@@ -49,3 +50,4 @@ fig-kappa_files/
 run.magmap.30-9-2025
 .positai
 old_data_not_used/
+.DS_Store

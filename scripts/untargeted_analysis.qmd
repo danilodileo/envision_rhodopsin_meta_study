@@ -299,6 +299,28 @@ ko_class <- c(
   K07127 = "Other transporter",
   K02198 = "Other transporter"
 )
+
+# Family and class palette (same as fine-scale-analysis.qmd / Overall_community...
+# .qmd, kept identical so the same family always gets the same color across
+# manuscript figures)
+family_class_colors <- c(
+  "Pelagibacteraceae_Alphaproteobacteria"  = "#56B4E9",  # sky blue
+  "Marisalimonadaceae_Alphaproteobacteria" = "#009E73",  # bluish green
+  "Puniceispirillaceae_Alphaproteobacteria"= "#E69F00",  # orange
+  "Rhodobacteraceae_Alphaproteobacteria"   = "#CC79A7",  # reddish purple
+
+  "Porticoccaceae_Gammaproteobacteria"     = "#0072B2",  # blue
+  "Pseudothioglobaceae_Gammaproteobacteria"= "#D55E00",  # vermillion
+  "D2472_Gammaproteobacteria"              = "#F0E442",  # yellow
+  "Azotimanducaceae_Gammaproteobacteria"   = "#999999",  # gray
+  "CABXJW01_Gammaproteobacteria"           = "#66C2A5",  # teal
+
+  "Flavobacteriaceae_Bacteroidia"          = "#8DA0CB",  # lavender blue
+  "Poseidoniaceae_Poseidoniia"             = "#E78AC3",  # pink
+  "Thalassarchaeaceae_Poseidoniia"         = "#A6D854",  # light green
+
+  "other_family_other_class"               = "gray80"    # neutral for “other”
+)
 ```
 
 ```{r read-data, cache.lazy=FALSE}
@@ -1276,7 +1298,7 @@ signif_mat_filt <- signif_mat[keep_rows, keep_cols, drop = FALSE]
 lim <- max(abs(cor_mat_filt))
 breaks <- seq(-lim, lim, length.out = 101)
 # Plot pheatmap
-pheatmap(
+f6b <- pheatmap(
   cor_mat_filt,
   cluster_rows = TRUE,
   breaks = breaks,
@@ -1351,7 +1373,7 @@ sig_matrix <- class_summary %>%
 
 # ── 5. Plot ───────────────────────────────────────────────────────────────────
 pal    <- colorRampPalette(c("#2166AC", "#FFFFFF", "#D6604D"))(100)
-breaks <- seq(-1, 1, length.out = 101)
+breaks <- seq(-0.7, 0.7, length.out = 101)  # actual data range is -0.55/0.80; -1/1 left most of the palette unused
 
 f5a <- pheatmap(
   cor_matrix,
@@ -1363,8 +1385,44 @@ f5a <- pheatmap(
   cluster_cols     = FALSE,   # taxonomic order, no clustering on cols
   treeheight_row   = 5,
   display_numbers  = sig_matrix,
-  number_color     = "black"
+  number_color     = "black",
+  name             = "rho"
 )
+
+# --- Color-code the column labels by family (same family_class_colors
+# palette/pattern as Figure 3A in fine-scale-analysis.qmd) ---
+# Match on the genome accession only (leading token of genome_family), not
+# the full string: genus spelling can differ across tables, so a full-string
+# match can silently miss genomes (see fine-scale-analysis.qmd fig3a fix).
+f5a.genome_class <- counts.rhodo.genomes %>%
+  distinct(genome, family, class) %>%
+  group_by(genome) %>%
+  slice(1) %>%
+  ungroup() %>%
+  mutate(
+    family_class = paste0(family, "_", class),
+    family_class = ifelse(family_class %in% names(family_class_colors),
+                           family_class, "other_family_other_class")
+  )
+
+f5a.col_labels        <- colnames(cor_matrix)
+f5a.genome_ids_sorted  <- f5a.genome_class$genome[order(-nchar(f5a.genome_class$genome))]
+f5a.find_genome <- function(x) {
+  hit <- f5a.genome_ids_sorted[startsWith(x, paste0(f5a.genome_ids_sorted, "_"))]
+  if (length(hit) == 0) NA_character_ else hit[1]
+}
+f5a.col_genome_id <- vapply(f5a.col_labels, f5a.find_genome, character(1))
+
+f5a.col_colors <- setNames(
+  family_class_colors[f5a.genome_class$family_class[match(f5a.col_genome_id, f5a.genome_class$genome)]],
+  f5a.col_labels
+)
+
+# Post-hoc slot assignment: pheatmap()'s own column_names_gp already consumes
+# fontsize_col/fontface_col internally, so passing column_names_gp a second
+# time via `...` errors ("matched by multiple actual arguments").
+stopifnot(identical(f5a@column_names_param$labels, colnames(cor_matrix)))
+f5a@column_names_param$gp$col <- f5a.col_colors[f5a@column_names_param$labels]
 ```
 
 ```{r fig6-final}
@@ -1452,8 +1510,7 @@ f5b <- ggplot(tplot_data, aes(x = K04641, y = value)) +
                      labels = c("TRUE" = "correlated", "FALSE" = "not correlated"),
                      name = "") +
   facet_grid(ko ~ genome) +
-  labs(title = "Distinct substrate transporters co-expressed with rhodopsin across Pelagibacter genomes",
-       x = "K04641 (rhodopsin)(%)", y = "Transporter(%)") +
+  labs(x = "K04641 (rhodopsin)(%)", y = "Transporter(%)") +
   theme_bw() +
   theme(legend.position = "bottom")
 ```
@@ -1469,6 +1526,12 @@ x <- wrap_plots(f5a_gg, f5b_gg, ncol = 1) +
   plot_layout(heights = c(1, 1)) + plot_annotation(tag_levels = 'A') # adjust ratio if one heatmap is taller
 
 ggsave('fig5.jpeg', x, width = 10, height = 16, units = "in", dpi = 300)
+
+# cairo_pdf: guards against the base pdf() device mangling any non-ASCII
+# character in genome/KO labels (see supplementary-figure-7 fix in
+# fine-scale-analysis.qmd for the same issue).
+ggsave("figures/fig5.pdf", plot = x, width = 10, height = 16, units = "in", device = cairo_pdf)
+ggsave("figures/fig5.png", plot = x, width = 10, height = 16, units = "in", dpi = 300)
 ```
 
 ```{r respiration-markers}

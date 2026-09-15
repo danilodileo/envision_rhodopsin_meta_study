@@ -162,7 +162,25 @@ genome_vector_ordered <- c(
 "GCA_018607525.1_Porticoccaceae"
 )
 
+# Family and class palette
+family_class_colors <- c(
+  "Pelagibacteraceae_Alphaproteobacteria"  = "#56B4E9",  # sky blue
+  "Marisalimonadaceae_Alphaproteobacteria" = "#009E73",  # bluish green
+  "Puniceispirillaceae_Alphaproteobacteria"= "#E69F00",  # orange
+  "Rhodobacteraceae_Alphaproteobacteria"   = "#CC79A7",  # reddish purple
 
+  "Porticoccaceae_Gammaproteobacteria"     = "#0072B2",  # blue
+  "Pseudothioglobaceae_Gammaproteobacteria"= "#D55E00",  # vermillion
+  "D2472_Gammaproteobacteria"              = "#F0E442",  # yellow
+  "Azotimanducaceae_Gammaproteobacteria"   = "#999999",  # gray
+  "CABXJW01_Gammaproteobacteria"           = "#66C2A5",  # teal
+
+  "Flavobacteriaceae_Bacteroidia"          = "#8DA0CB",  # lavender blue
+  "Poseidoniaceae_Poseidoniia"             = "#E78AC3",  # pink
+  "Thalassarchaeaceae_Poseidoniia"         = "#A6D854",  # light green
+
+  "other_family_other_class"               = "gray80"    # neutral for “other”
+)
 ```
 
 ```{r read-data, cache.lazy=FALSE}
@@ -416,11 +434,11 @@ With this part of analysis I am trying to dig into pattern I can see from fig.4 
 
 I will focus on:
 
-- Porticocco (2 genomes)
+-   Porticocco (2 genomes)
 
-- thalasso (2 genomes)
+-   thalasso (2 genomes)
 
-- pelagi (2 genomes)
+-   pelagi (2 genomes)
 
 ```{r heatmap-code-preparation}
 #| echo: false
@@ -1026,6 +1044,24 @@ plot_df <- prd.genome.correlation %>%
   ) %>%
   left_join(corr_stats, by = "genome")
 
+# Facet order: group panels by family (following the manuscript's existing
+# family_class_colors order), with archaeal genomes (domain == "Archaea",
+# class Poseidoniia in this dataset) placed together at the very end;
+# alphabetical by genome accession within each family.
+genome_facet_order <- counts.rhodo.genomes %>%
+  distinct(genome, family, domain) %>%
+  filter(genome %in% unique(plot_df$genome)) %>%
+  mutate(
+    is_archaea  = domain == "Archaea",
+    family_rank = match(family, str_remove(names(family_class_colors), "_[^_]+$")),
+    family_rank = ifelse(is.na(family_rank), Inf, family_rank)
+  ) %>%
+  arrange(is_archaea, family_rank, family, genome) %>%
+  pull(genome)
+
+plot_df <- plot_df %>%
+  mutate(genome = factor(genome, levels = genome_facet_order))
+
 ggplot(
   plot_df,
   aes(x = log_tpm, y = log_rhodopsin)
@@ -1270,6 +1306,43 @@ fig3a <- pheatmap(
   legend = FALSE,
   fontsize_number = 11,
   border_color = "black" )
+
+# --- Color-code the column labels by family (same palette as family_class_colors) ---
+# Column labels are "<genome>_<family>_<genus>[†]"; genus spelling is
+# inconsistent between individual.abundance and counts.rhodo.genomes
+# (e.g. "MGIIb.O2" vs "MGIIb-O2" for the same genome), so match on the
+# genome accession only (the leading token), which is unambiguous.
+prd.genome_class <- counts.rhodo.genomes %>%
+  distinct(genome, family, class) %>%
+  group_by(genome) %>%
+  slice(1) %>%
+  ungroup() %>%
+  mutate(
+    family_class = paste0(family, "_", class),
+    family_class = ifelse(family_class %in% names(family_class_colors),
+                           family_class, "other_family_other_class")
+  )
+
+prd.col_stripped     <- sub("†$", "", colnames(prd.cor_mat))
+prd.genome_ids_sorted <- prd.genome_class$genome[order(-nchar(prd.genome_class$genome))]
+prd.find_genome <- function(x) {
+  hit <- prd.genome_ids_sorted[startsWith(x, paste0(prd.genome_ids_sorted, "_"))]
+  if (length(hit) == 0) NA_character_ else hit[1]
+}
+prd.col_genome_id <- vapply(prd.col_stripped, prd.find_genome, character(1))
+
+prd.col_label_colors <- setNames(
+  family_class_colors[prd.genome_class$family_class[match(prd.col_genome_id, prd.genome_class$genome)]],
+  colnames(prd.cor_mat)
+)
+
+# Inject the per-label colors into the already-built Heatmap object: passing
+# column_names_gp directly to pheatmap() errors ("matched by multiple actual
+# arguments"), since the wrapper already builds it internally from
+# fontsize_col/fontface_col. Post-hoc slot assignment keeps pheatmap()'s
+# sizing/layout untouched and only overrides label colors.
+stopifnot(identical(fig3a@column_names_param$labels, colnames(prd.cor_mat)))
+fig3a@column_names_param$gp$col <- prd.col_label_colors[fig3a@column_names_param$labels]
 ```
 
 ```{r plot-fig3}
@@ -1282,7 +1355,7 @@ fig3_final <- as.ggplot(fig3a) + fig3b +
   plot_annotation(tag_levels = 'A')
 
 ggsave("figures/Figure3.pdf", plot = fig3_final, width = 20, height = 11)
-ggsave("figures/Figure3.png", plot = fig3_final, width = 20, height = 11, dpi = 300)```
+ggsave("figures/Figure3.png", plot = fig3_final, width = 20, height = 11, dpi = 300)
 ```
 
 ```{r spearman-by-season-and-site}
@@ -1735,6 +1808,9 @@ group_by(sample, kegg_ko, genome, site, day) %>%
   group_by(site, kegg_ko, genome, day) %>%
   summarise(avg = mean(sum_perc),
             sd = sd(sum_perc), .groups = "drop") %>%
+  # day is numeric in the source table; scale_y_discrete() below needs a
+  # discrete y, otherwise it silently drops the axis tick labels entirely.
+  mutate(day = factor(day, levels = sort(unique(day)))) %>%
 ggplot(aes(x = factor(kegg_ko, levels = join.kos.525),
            y = day,
            size = avg)) +
@@ -1897,6 +1973,9 @@ porti.bubble.2 <- porti.ko.find.filtered %>%
   group_by(site, kegg_ko, genome, day) %>%
   summarise(avg = mean(sum_perc),
             sd = sd(sum_perc), .groups = "drop") %>%
+  # day is numeric in the source table; scale_y_discrete() below needs a
+  # discrete y, otherwise it silently drops the axis tick labels entirely.
+  mutate(day = factor(day, levels = sort(unique(day)))) %>%
 ggplot(aes(x = factor(kegg_ko, levels = join.kos),
            y = day,
            size = avg)) +
@@ -1930,62 +2009,16 @@ coord_flip(clip = "off") +
 #| echo: false
 #| fig-width: 14
 #| fig-height: 7
-(porti.bubble.1 + porti.bubble.2) +
+porti.bubble.viz <- (porti.bubble.1 + porti.bubble.2) +
   plot_layout(guides = "collect") &
   theme(legend.position = "bottom")
-```
 
-```{r porti-line-plot}
-#| fig-width: 10
-#| fig-height: 10
-porti.line.df <- individual.abundance %>%
-  filter(
-    site == 'Coast',
-    season == "Summer",
-    genome %in% (top30genomes.prd.abundance %>% distinct(genome) %>% pull(genome)),
-    annotation == 'rhodopsin',
-    family == 'Porticoccaceae',
-    !genome %in% c('GCA_038143955.1', 'GCA_943846655.1')  # your excluded ones
-  ) %>%
-  distinct(day, sample, site, season, family, genome, perc) %>%
-  mutate(genome_family = paste0(genome, '_', family)) %>%
-  group_by(day, sample, site, season, genome_family) %>%
-  summarise(rhodopsin = sum(perc), .groups = 'drop') %>%
-  left_join(metadata %>% select(sample, doc, chla_tot, pa), by = "sample") %>%
-  mutate(across(c(rhodopsin, doc, chla_tot), ~ scale(.)[,1])) %>%
-  pivot_longer(cols = c(rhodopsin, doc, chla_tot), names_to = "variable")
+porti.bubble.viz
 
-porti.line <- ggplot(porti.line.df, aes(
-  x = as.numeric(day),
-  y = value,
-  color = genome_family,
-  linetype = variable
-)) +
-  geom_line(linewidth = 1) +
-  scale_linetype_manual(
-    values = c(
-      "rhodopsin" = "solid",
-      "doc" = "dashed",
-      "chla_tot" = "dotted"
-    )
-  ) +
-  scale_color_manual(values = c("#000000", "#E69F00", "#56B4E9")) +
-  theme_bw() +
-  facet_wrap(~season+site) +
-  labs(
-    x = "Day",
-    y = "Scaled value",
-    color = "Genome",
-    linetype = "Variable"
-  ) +
-  theme(
-    strip.text = element_text(size = 12),
-    legend.position = "right"
-  )  +
-  labs(
-    title = 'Porticoccaceae '
-  )
-
+# cairo_pdf: some KO descriptions contain Greek letters / en-dashes that the
+# base pdf() device's font can't encode (see supplementary-figure-7 fix).
+ggsave("figures/porti-bubble-visualization.pdf", plot = porti.bubble.viz, width = 14, height = 7, device = cairo_pdf)
+ggsave("figures/porti-bubble-visualization.png", plot = porti.bubble.viz, width = 14, height = 7, dpi = 300)
 ```
 
 ### Pelagibacteraceae
@@ -2142,6 +2175,9 @@ group_by(sample, kegg_ko, genome, site, day) %>%
   group_by(site, kegg_ko, genome, day) %>%
   summarise(avg = mean(sum_perc),
             sd = sd(sum_perc), .groups = "drop") %>%
+  # day is numeric in the source table; scale_y_discrete() below needs a
+  # discrete y, otherwise it silently drops the axis tick labels entirely.
+  mutate(day = factor(day, levels = sort(unique(day)))) %>%
 ggplot(aes(x = factor(kegg_ko, levels = join.kos.535),
            y = day,
            size = avg)) +
@@ -2289,6 +2325,9 @@ group_by(sample, kegg_ko, genome, site, day) %>%
   group_by(site, kegg_ko, genome, day) %>%
   summarise(avg = mean(sum_perc),
             sd = sd(sum_perc), .groups = "drop") %>%
+  # day is numeric in the source table; scale_y_discrete() below needs a
+  # discrete y, otherwise it silently drops the axis tick labels entirely.
+  mutate(day = factor(day, levels = sort(unique(day)))) %>%
 ggplot(aes(x = factor(kegg_ko, levels = join.kos.645),
            y = day,
            size = avg)) +
@@ -2322,120 +2361,176 @@ ggplot(aes(x = factor(kegg_ko, levels = join.kos.645),
 #| echo: false
 #| fig-width: 14
 #| fig-height: 7
-(pela.bubble.1 + pela.bubble.2) +
+pela.bubble.viz <- (pela.bubble.1 + pela.bubble.2) +
   plot_layout(guides = "collect") &
   theme(legend.position = "bottom")
+
+pela.bubble.viz
+
+# cairo_pdf: some KO descriptions contain em-dashes that the base pdf()
+# device's font can't encode (see supplementary-figure-7 fix).
+ggsave("figures/pela-bubble-visualization.pdf", plot = pela.bubble.viz, width = 14, height = 7, device = cairo_pdf)
+ggsave("figures/pela-bubble-visualization.png", plot = pela.bubble.viz, width = 14, height = 7, dpi = 300)
 
 ```
 
 ### Other line plots
 
-```{r puni-line-plot}
+```{r supplementary-figure-6}
 #| fig-width: 10
-#| fig-height: 10
-punice.line <- individual.abundance %>%
+#| fig-height: 14
+# Poseidoniaceae only, Spring + Summer (Coast). DOC is a sample-level
+# environmental variable (identical across every genome on a given day), so
+# it's shown once, in its own real units (not scaled), rather than repeated
+# per genome with a shared z-scored axis that flattened its actual trend.
+# chla_tot is dropped: not discussed for Poseidoniaceae in the main text.
+posei.env.df <- individual.abundance %>%
   filter(
     site == 'Coast',
-    season %in% c("Spring"),
-    #genome %in% (top30genomes.prd.abundance %>% distinct(genome) %>% pull(genome)),
-    genome %in% c('metabat2.225', 'GCA_943789275.1'),
-    annotation == 'rhodopsin'
-    #family == 'Puniceispirillaceae'
-  ) %>%
-  distinct(day, sample, site, season, family, genome, perc) %>%
-  mutate(genome_family = paste0(genome, '_', family)) %>%
-  group_by(day, sample, site, season, genome_family) %>%
-  summarise(rhodopsin = sum(perc), .groups = 'drop') %>%
-  left_join(metadata %>% select(sample, doc, chla_tot, pa), by = "sample") %>%
-  mutate(across(c(rhodopsin, doc, chla_tot), ~ scale(.)[,1])) %>%
-  pivot_longer(cols = c(rhodopsin, doc, chla_tot), names_to = "variable") %>%
-  ggplot(aes(
-    x = as.numeric(day),
-    y = value,
-    color = genome_family,
-    linetype = variable
-  )) +
-  geom_line(linewidth = 1) +
-  scale_linetype_manual(
-    values = c(
-      rhodopsin = "solid",
-      doc = "dashed",
-      chla_tot = "dotted"
-    )
-  ) +
-  scale_color_manual(values = c("#999999", "#F0E442", "#CCB974")) +
-  theme_bw() +
-  facet_wrap(~season+site) +
-  labs(
-    x = "Day",
-    y = "Scaled value",
-    color = "Genome",
-    linetype = "Variable"
-  ) +
-  theme(
-    strip.text = element_text(size = 10)
-  ) +
-  labs(
-    title = 'Puniceispirillaceae'
-  )
-```
-
-```{r posei-line-plot}
-#| fig-width: 10
-#| fig-height: 10
-posei.line <- individual.abundance %>%
-  filter(
-    site == 'Coast',
-    season == "Spring",
+    season %in% c("Spring", "Summer"),
     genome %in% (top30genomes.prd.abundance %>% distinct(genome) %>% pull(genome)),
-    !genome %in% c('GCA_913064995.1'),
+    annotation == 'rhodopsin',
+    family == 'Poseidoniaceae'
+  ) %>%
+  distinct(day, sample, season) %>%
+  left_join(metadata %>% select(sample, doc), by = "sample") %>%
+  mutate(season = factor(season, levels = c("Spring", "Summer")))
+
+posei.env <- ggplot(posei.env.df, aes(x = as.numeric(day), y = doc)) +
+  geom_line(color = "#0072B2", linewidth = 1) +
+  geom_point(color = "#0072B2", size = 2.5) +
+  facet_wrap(~season, nrow = 1) +
+  theme_bw(base_size = 16) +
+  labs(x = NULL, y = "DOC (µM C)", title = "Environmental context (Coast)") +
+  theme(
+    strip.text  = element_text(size = 15, face = "bold"),
+    axis.text   = element_text(size = 13),
+    axis.title  = element_text(size = 15),
+    plot.title  = element_text(size = 16)
+  )
+
+# Rhodopsin is genome-specific, in its own unit (% of genome transcription) —
+# kept raw as well, one panel per genome x season.
+posei.rhodo.df <- individual.abundance %>%
+  filter(
+    site == 'Coast',
+    season %in% c("Spring", "Summer"),
+    genome %in% (top30genomes.prd.abundance %>% distinct(genome) %>% pull(genome)),
     annotation == 'rhodopsin',
     family == 'Poseidoniaceae'
   ) %>%
   distinct(day, sample, site, season, family, genome, perc) %>%
+  group_by(day, sample, site, season, genome) %>%
+  summarise(rhodopsin = sum(perc), .groups = 'drop') %>%
+  mutate(season = factor(season, levels = c("Spring", "Summer")))
+
+posei.rhodo <- ggplot(posei.rhodo.df, aes(x = as.numeric(day), y = rhodopsin)) +
+  geom_line(color = "black", linewidth = 1) +
+  geom_point(color = "black", size = 2.5) +
+  facet_grid(genome ~ season, scales = "free_y") +
+  theme_bw(base_size = 16) +
+  labs(x = "Day", y = "Rhodopsin (% of genome transcription)",
+       title = "Poseidoniaceae genomes") +
+  theme(
+    strip.text.x = element_text(size = 15, face = "bold"),
+    # smaller than strip.text.x: rotated accession strings (~16 chars) at
+    # 15pt clipped against the row height even at fig-height 12in
+    strip.text.y = element_text(size = 11, face = "bold"),
+    axis.text    = element_text(size = 13),
+    axis.title   = element_text(size = 15),
+    plot.title   = element_text(size = 16)
+  )
+
+posei.line <- posei.env / posei.rhodo +
+  plot_layout(heights = c(1, 2.2)) +
+  plot_annotation(tag_levels = 'A') &
+  theme(plot.tag = element_text(size = 20, face = "bold"))
+
+posei.line
+
+ggsave("figures/supplementary-figure-6.pdf", plot = posei.line, width = 10, height = 14)
+ggsave("figures/supplementary-figure-6.png", plot = posei.line, width = 8, height = 10, dpi = 300)
+```
+
+```{r supplementary-figure-7}
+#| fig-width: 12
+#| fig-height: 6
+# Same single-panel-per-family layout/legend as the original suppl-fig4
+# (z-scored "Scaled value" axis, one overlaid panel per family), but:
+# (1) Puniceispirillaceae keeps only metabat2.225 — GCA_943789275.1 was
+#     Poseidoniaceae, wrongly included before (see supplementary-figure-6);
+# (2) color/linetype are swapped from the original: color now encodes
+#     variable (rhodopsin/doc/chla_tot) so they're never the same color,
+#     and linetype encodes genome — the original (color = genome,
+#     linetype = variable) made chla_tot/doc indistinguishable in color.
+var_colors <- c(rhodopsin = "#000000", doc = "#0072B2", chla_tot = "#D55E00")
+var_labs   <- c(rhodopsin = "Rhodopsin", doc = "DOC", chla_tot = "Chl a")
+
+punice.line.df <- individual.abundance %>%
+  filter(
+    site == 'Coast',
+    season == "Spring",
+    genome == 'metabat2.225',
+    annotation == 'rhodopsin'
+  ) %>%
+  distinct(day, sample, site, season, family, genome, perc) %>%
   mutate(genome_family = paste0(genome, '_', family)) %>%
   group_by(day, sample, site, season, genome_family) %>%
   summarise(rhodopsin = sum(perc), .groups = 'drop') %>%
-  left_join(metadata %>% select(sample, doc, chla_tot, pa), by = "sample") %>%
+  left_join(metadata %>% select(sample, doc, chla_tot), by = "sample") %>%
   mutate(across(c(rhodopsin, doc, chla_tot), ~ scale(.)[,1])) %>%
-  pivot_longer(cols = c(rhodopsin, doc, chla_tot), names_to = "variable") %>%
-  ggplot(aes(
-    x = as.numeric(day),
-    y = value,
-    color = genome_family,
-    linetype = variable
+  pivot_longer(cols = c(rhodopsin, doc, chla_tot), names_to = "variable")
+
+punice.line <- ggplot(punice.line.df, aes(
+    x = as.numeric(day), y = value,
+    color = variable, linetype = genome_family
   )) +
-  facet_wrap(~season+site) +
   geom_line(linewidth = 1) +
-  scale_linetype_manual(
-    values = c(
-      rhodopsin = "solid",
-      doc = "dashed",
-      chla_tot = "dotted"
-    )
-  ) +
-  scale_color_manual(values = c("#CC79A7", "#0072B2", "#D55E00", "#009E73")) +
+  scale_color_manual(values = var_colors, labels = var_labs) +
+  scale_linetype_manual(values = c("metabat2.225_Puniceispirillaceae" = "solid")) +
   theme_bw() +
-  labs(
-    x = "Day",
-    y = "Scaled value",
-    color = "Genome",
-    linetype = "Variable"
-  ) +
-  theme(
-    strip.text = element_text(size = 10)
-  )  +
-  labs(
-    title = 'Poseidoniaceae'
-  )
-```
+  facet_wrap(~season+site) +
+  labs(x = "Day", y = "Scaled value", color = "Variable", linetype = "Genome",
+       title = "Puniceispirillaceae") +
+  theme(strip.text = element_text(size = 12), legend.position = "right")
 
-```{r suppl-fig4}
-#| fig-width: 10
-#| fig-height: 5
-punice.line + porti.line + 
+porti.line.df <- individual.abundance %>%
+  filter(
+    site == 'Coast',
+    season == "Summer",
+    genome %in% (top30genomes.prd.abundance %>% distinct(genome) %>% pull(genome)),
+    annotation == 'rhodopsin',
+    family == 'Porticoccaceae',
+    !genome %in% c('GCA_038143955.1', 'GCA_943846655.1')  # your excluded ones
+  ) %>%
+  distinct(day, sample, site, season, family, genome, perc) %>%
+  mutate(genome_family = paste0(genome, '_', family)) %>%
+  group_by(day, sample, site, season, genome_family) %>%
+  summarise(rhodopsin = sum(perc), .groups = 'drop') %>%
+  left_join(metadata %>% select(sample, doc, chla_tot), by = "sample") %>%
+  mutate(across(c(rhodopsin, doc, chla_tot), ~ scale(.)[,1])) %>%
+  pivot_longer(cols = c(rhodopsin, doc, chla_tot), names_to = "variable")
+
+porti.line <- ggplot(porti.line.df, aes(
+    x = as.numeric(day), y = value,
+    color = variable, linetype = genome_family
+  )) +
+  geom_line(linewidth = 1) +
+  scale_color_manual(values = var_colors, labels = var_labs) +
+  scale_linetype_manual(values = c("solid", "dashed", "dotted")) +
+  theme_bw() +
+  facet_wrap(~season+site) +
+  labs(x = "Day", y = "Scaled value", color = "Variable", linetype = "Genome",
+       title = "Porticoccaceae") +
+  theme(strip.text = element_text(size = 12), legend.position = "right")
+
+suppl.fig7 <- punice.line + porti.line +
   plot_layout(guides = 'collect') +
-  plot_annotation(tag_levels = 'A')
+  plot_annotation(tag_levels = 'A') &
+  theme(plot.tag = element_text(size = 20, face = "bold"))
 
+suppl.fig7
 
+ggsave("figures/supplementary-figure-7.pdf", plot = suppl.fig7, width = 12, height = 6)
+ggsave("figures/supplementary-figure-7.png", plot = suppl.fig7, width = 12, height = 6, dpi = 300)
 ```
