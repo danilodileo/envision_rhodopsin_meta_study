@@ -823,7 +823,17 @@ ra_genus <- rowAnnotation(
 
 ht_list <- ht1 + ht3 + ht2 + ht4 + ra_genus
 
-png("fig4.png", width = 20, height = 12, units = "in", res = 300)
+png("figures/Figure4.png", width = 20, height = 12, units = "in", res = 300)
+draw(
+  ht_list,
+  heatmap_legend_side    = "bottom",
+  annotation_legend_side = "bottom",
+  merge_legend           = FALSE,
+  ht_gap                 = unit(8, "mm")
+)
+dev.off()
+
+cairo_pdf("figures/Figure4.pdf", width = 20, height = 12)
 draw(
   ht_list,
   heatmap_legend_side    = "bottom",
@@ -2449,7 +2459,7 @@ posei.line <- posei.env / posei.rhodo +
 posei.line
 
 ggsave("figures/supplementary-figure-6.pdf", plot = posei.line, width = 10, height = 14)
-ggsave("figures/supplementary-figure-6.png", plot = posei.line, width = 8, height = 10, dpi = 300)
+ggsave("figures/supplementary-figure-6.png", plot = posei.line, width = 10, height = 14, dpi = 300)
 ```
 
 ```{r supplementary-figure-7}

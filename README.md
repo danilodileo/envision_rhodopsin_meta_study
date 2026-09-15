@@ -81,7 +81,7 @@ its figures to a local `figures/` subfolder.
 | Figure 1 | `Overall_community_composition.qmd` | `fig1-map-envision-sites` → `Environmental-variables` |
 | Figure 2 | `Overall_community_composition.qmd` | `fig3-rda` |
 | Figure 3 | `fine-scale-analysis.qmd` | `spearman-genome-prd-env` → `plot-fig3` |
-| Figure 4 | `fine-scale-analysis.qmd` | `heatmap-code-preparation` → `heatmaps-based-on-top-30-genomes-expressing-rhodopsin` (saved as `fig4.png` in the run directory — move/rename into `figures/`) |
+| Figure 4 | `fine-scale-analysis.qmd` | `heatmap-code-preparation` → `heatmaps-based-on-top-30-genomes-expressing-rhodopsin` |
 | Figure 5 | `untargeted_analysis.qmd` | `try-grouping-transporters` → `correlation-plot-pelagibacter-transporters` → `fig-5` |
 | Figure S4 | `fine-scale-analysis.qmd` | `correlation-rhodopsin-within-genome-and-genome-transcription-level-by-genome` |
 | Figure S6 | `fine-scale-analysis.qmd` | `supplementary-figure-6` |
@@ -92,6 +92,12 @@ its figures to a local `figures/` subfolder.
 Every figure-producing chunk saves both a vector PDF and a 300 dpi PNG to
 `figures/` via `ggsave()` (PDF figures use `device = cairo_pdf` where genome
 or KO labels contain non-ASCII characters, to avoid font-encoding artifacts).
+
+## License
+
+Code in this repository is released under the [MIT License](LICENSE). Figures
+are subject to the terms of the associated manuscript's copyright once
+published.
 
 ## Citation
 

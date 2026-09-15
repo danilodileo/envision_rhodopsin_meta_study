@@ -1,53 +1,31 @@
-# .gitignore for project root directories. Tries to ignore all files that may contain too much data
-# for a git repository, i.e. raw sequences, fasta files and some other.
-biomakefiles
-RAxML_bootstrap*
-*.bt2
-*.daa
-*.dmnd
-*.ebh
-*.err
-*.faa
-*.fastq*
-!*.fastq*.makecall
-*.fna
-*.pdf
-!figures/*.pdf
-*.maf
-*.maf.gz
-.RData
-.Rhistory 
-.Rproj.user
-*.8mer*
-silva.mothur.nr.*
+# Large/private data and intermediate files — see README "Data availability"
 *.zip
 *.rds
-*.qza
-*_report_cache*
-*.feather
-_cache
-.*.sw?
-.~*#
-*.html
-*_cache
-anvio
-data-not-to-upload
-magmap-analysis_cache
-magmap-analysis_files
-phylogenetic_placement
-magmap.output.k31.all.genomes
-test_files
-magmap.output.only.local.genomes/
-magmap.output.k31.all.samples
-comparison_metat_magmap*
-PfamTOM-block.1.RData
+*.RData
+*.Rhistory
+.Rproj.user
 env1_2.samplenames.csv
 env3.samplenames.csv
-heatmap.svg
-old_data_not_used.zip
-fig-kappa.qmd
-fig-kappa_files/
-run.magmap.30-9-2025
-.positai
 old_data_not_used/
+data-not-to-upload
+
+# Quarto/knitr render artifacts
+*.html
+*_cache
+*_files
+
+# PDFs are ignored by default, except the final figures we publish
+*.pdf
+!figures/*.pdf
+
+# Local working directory and unrelated scratch scripts (not part of the public repo)
+run.magmap.30-9-2025
+fig-kappa.qmd
+
+# Personal / environment-specific files (should never be tracked)
+.screenrc
+.positai
 .DS_Store
+*.Rproj
+envision - rhodopsin paper.bib
+envision - rhodopsin paper.rdf
