@@ -70,9 +70,9 @@ its figures to a local `figures/` subfolder.
 | Script | What it does |
 |---|---|
 | `prepare_tables.qmd` | Data-preparation pipeline. Reads the raw taxonomy, KEGG/eggNOG annotation and count outputs and writes the intermediate summary tables (`summary_tables/*.tsv.gz`) and cleaned metadata (`data/envision_metadata.tsv.gz`) used by every other script. **Cannot be re-run without the raw inputs**, which are not distributed here; included for pipeline transparency. |
-| `Overall_community_composition.qmd` | Site/season overview: sampling map with an Atlantic/Europe locator inset, environmental variable time series, mapping-rate statistics, rhodopsin-expressing genome overlap, taxonomic composition, NMDS ordination of community structure, and family-level rhodopsin expression heatmaps against environmental variables. Produces **Figure 1** and **Figure 2**. |
-| `fine-scale-analysis.qmd` | Genome-resolved analysis of the top-30 rhodopsin-expressing genomes: multi-track ComplexHeatmap of genome abundance/rhodopsin expression, Spearman correlations between rhodopsin and whole-genome transcription (per genome and per family), and family-specific time-series of rhodopsin expression vs. environmental variables (Poseidoniaceae, Puniceispirillaceae, Porticoccaceae) and KO-level bubble plots (Pelagibacteraceae, Porticoccaceae). Produces **Figure 3**, **Figure 4**, **Figure S4**, **Figure S6**, **Figure S7**, **Figure S8**, **Figure S9**. |
-| `untargeted_analysis.qmd` | KEGG pathway/module enrichment analysis (family- and genome-level GSEA), motility/pili/transporter KO correlation heatmaps, and rhodopsin-transporter co-expression in *Pelagibacter* genomes. Produces **Figure 5**. |
+| `Overall_community_composition.qmd` | Site/season overview: sampling map with an Atlantic/Europe locator inset, environmental variable time series, mapping-rate statistics, rhodopsin-expressing genome overlap, taxonomic composition, NMDS ordination of community structure, and family-level rhodopsin expression heatmaps against environmental variables. Produces **Figure 1**, **Figure 2**, **Figure S1**, **Figure S2**, **Figure S3**. |
+| `fine-scale-analysis.qmd` | Genome-resolved analysis of the top-30 rhodopsin-expressing genomes: multi-track ComplexHeatmap of genome abundance/rhodopsin expression, Spearman correlations between rhodopsin and whole-genome transcription (per genome and per family), and family-specific time-series of rhodopsin expression vs. environmental variables (Poseidoniaceae, Puniceispirillaceae, Porticoccaceae) and KO-level bubble plots (Thalassarchaeaceae, Pelagibacteraceae, Porticoccaceae). Produces **Figure 3**, **Figure 4**, **Figure S4**, **Figure S5**, **Figure S6**, **Figure S7**, **Figure S8**, **Figure S9**. |
+| `untargeted_analysis.qmd` | KEGG pathway/module enrichment analysis (family- and genome-level GSEA), motility/pili/transporter KO correlation heatmaps, and rhodopsin-transporter co-expression in *Pelagibacter* genomes. Produces **Figure 5**, **Figure S10**. |
 
 ### Figure → script map
 
@@ -83,11 +83,16 @@ its figures to a local `figures/` subfolder.
 | Figure 3 | `fine-scale-analysis.qmd` | `spearman-genome-prd-env` → `plot-fig3` |
 | Figure 4 | `fine-scale-analysis.qmd` | `heatmap-code-preparation` → `heatmaps-based-on-top-30-genomes-expressing-rhodopsin` |
 | Figure 5 | `untargeted_analysis.qmd` | `try-grouping-transporters` → `correlation-plot-pelagibacter-transporters` → `fig-5` |
+| Figure S1 | `Overall_community_composition.qmd` | `supplementary-figure-1` |
+| Figure S2 | `Overall_community_composition.qmd` | `supplementary-figure-2` |
+| Figure S3 | `Overall_community_composition.qmd` | `supplementary-figure-3` |
 | Figure S4 | `fine-scale-analysis.qmd` | `correlation-rhodopsin-within-genome-and-genome-transcription-level-by-genome` |
+| Figure S5 | `fine-scale-analysis.qmd` | `supplementary-figure-5` |
 | Figure S6 | `fine-scale-analysis.qmd` | `supplementary-figure-6` |
 | Figure S7 | `fine-scale-analysis.qmd` | `supplementary-figure-7` |
 | Figure S8 | `fine-scale-analysis.qmd` | `pela-bubble-visualization` |
 | Figure S9 | `fine-scale-analysis.qmd` | `porti-bubble-visualization` |
+| Figure S10 | `untargeted_analysis.qmd` | `fig6-enrichment` → `supplementary-figure-10` |
 
 Every figure-producing chunk saves both a vector PDF and a 300 dpi PNG to
 `figures/` via `ggsave()` (PDF figures use `device = cairo_pdf` where genome

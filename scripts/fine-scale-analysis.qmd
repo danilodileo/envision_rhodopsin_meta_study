@@ -1408,7 +1408,7 @@ kable(
 
 ### Thalassoarcheacaeae
 
-```{r thalasso-top30kos}
+```{r supplementary-figure-5}
 #| fig-width: 10
 #| fig-height: 9
 #| warning: false
@@ -1638,11 +1638,15 @@ theme(
     subtitle = "Bubble plot by day"
   )
 
-thala.bubble 
+# cairo_pdf: KO description labels can contain non-ASCII characters (see
+# porti/pela-bubble-visualization for the same fix).
+ggsave("figures/supplementary-figure-5.pdf", plot = thala.bubble, width = 10, height = 9, device = cairo_pdf)
+ggsave("figures/supplementary-figure-5.png", plot = thala.bubble, width = 10, height = 9, dpi = 300)
 
-
-  
+thala.bubble
 ```
+
+**Supplementary figure 5. Relative expression of the 30 most highly expressed genes in each of two Thalassarcheaceae genomes.** The x-axis represents sampling days and the y-axis illustrates the genes (defined through KEGG ortholog [KO] terms). Genes in blue were among the 30 most highly expressed only in the genome 0775.1. Genes in red were among the 30 most highly expressed only in genome 8985.1. Genes in black were among the 30 most highly expressed in both genomes. Bubbles display the proportion of the transcriptome for each of the populations that is dedicated to the rhodopsin gene (average investment in a given gene for each season).
 
 ### Porticoccaceae
 

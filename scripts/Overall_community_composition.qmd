@@ -699,7 +699,7 @@ summary_table %>%
 
 In this section I want to know if there are unique genomes having rhodopsin per site or season using Venn diagram.
 
-```{r venn-diagram}
+```{r supplementary-figure-1}
 #| echo: false
 #| fig-width: 15
 #| fig-height: 10
@@ -737,13 +737,18 @@ sets <- list(
 
 gven2 <- ggvenn(sets[c("Offshore", "Coast")]) + ggvenn(sets[c("Winter", "Spring", "Summer")])
 
-gven2 / gven1 +
+suppl_fig1 <- gven2 / gven1 +
   plot_annotation(title = "Venn diagram on recruited genomes",
                   subtitle = "AB. whole community; CD. rhodopsin community",
                   tag_levels = 'A')
+
+ggsave("figures/supplementary-figure-1.pdf", plot = suppl_fig1, width = 15, height = 10)
+ggsave("figures/supplementary-figure-1.png", plot = suppl_fig1, width = 15, height = 10, dpi = 300)
+
+suppl_fig1
 ```
 
-**Figure 3. Venn diagrams for genomes actively expressing rhodopsin.** A. Shared and unique genomes per site. B. Shared and unique genomes per season.
+**Supplementary figure 1. Distribution of recruited genomes across sampling regions and seasons.** Panels A–B describe the whole community, while panels C–D describe the rhodopsin-containing community.
 
 ## 3. Overall taxonomy
 
@@ -1117,13 +1122,13 @@ fig2b <- top.class.counts.rhodo.genomes %>%
 fig2a + fig2b + plot_layout(guides = 'collect') + plot_annotation(tag_level = 'A', title = 'Taxonomy plot averaged by season - Class level')
 ```
 
-**Supplementary figure 4. Averaged bar plot at class level.** A. Taxonomy plot for overall community. B. Taxonomy plot only for genomes actively expressing rhodopsin.
+**Averaged bar plot at class level.** A. Taxonomy plot for overall community. B. Taxonomy plot only for genomes actively expressing rhodopsin. (Not currently assigned a figure number in the manuscript — Figure S4 is a different plot, see `fine-scale-analysis.qmd`.)
 
 ### Contribution of different taxa to the dataset
 
 #### Class level
 
-```{r supplementary-figure-5}
+```{r supplementary-figure-3}
 #| fig-width: 15
 #| fig-height: 8
 # proportion class total community
@@ -1166,14 +1171,19 @@ s5 <- ggplot(class.proportion.rhodo.genomes, aes(x = reorder(class, -mean_propor
   theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.position = "none") +
   scale_fill_manual(values = class_colors)
 
-s4 / s5 + plot_annotation(tag_levels = 'A')
+suppl_fig3 <- s4 / s5 + plot_annotation(tag_levels = 'A')
+
+ggsave("figures/supplementary-figure-3.pdf", plot = suppl_fig3, width = 15, height = 8)
+ggsave("figures/supplementary-figure-3.png", plot = suppl_fig3, width = 15, height = 8, dpi = 300)
+
+suppl_fig3
 ```
 
-**Supplementary figure 5.** This plots are showing top 12 class per abundance in the dataset: plot A is showing all genomes, plot B only genomes with rhodopsin community.
+**Supplementary figure 3. Class-level relative contributions across seasons and sites.** A) total transcriptome, B) genomes expressing rhodopsin community. For each season (Winter, Spring, Summer) and site (Coast, Offshore), the mean proportional abundance (%) of major bacterial and archaeal classes is shown. Bars are colored by class and annotated with mean percentage values.
 
 #### Family level - Only genomes with rhodopsin
 
-```{r supplementary-figure-6}
+```{r family-proportion-plot}
 #| fig-width: 15
 #| fig-height: 8
 #| warning: false
@@ -1219,7 +1229,7 @@ theme(
 s6
 ```
 
-**Supplementary figure 6.** This plot is showing top 12 family per abundance in the ENVISION dataset that have active rhodopsin.
+**Family contribution to rhodopsin expression.** Top 12 families by abundance in the ENVISION dataset with active rhodopsin expression. (Not currently assigned a figure number in the manuscript.)
 
 ```{r family-proportion-whole-transcript}
 # Order plot by class level
@@ -1773,17 +1783,22 @@ fig2d <- nmds.rhodo.genomes$points %>%
 fig2c + fig2d + plot_annotation(tag_levels = 'A') + plot_layout(guides = 'collect')
 ```
 
-**Supplementary figure 7.** NMDS plots at class level for A. all genomes grouped by class; B. rhodopsin community grouped by class.
+**NMDS plots at genome level.** A. All genomes grouped by class; B. rhodopsin community grouped by class. (Not currently assigned a figure number in the manuscript.)
 
 #### Comprehensive figure for taxonomy at class level
 
-```{r taxonomy-barplot-nmds-class-level}
+```{r supplementary-figure-2}
 #| fig-width: 15
 #| fig-height: 12
-fig2a + fig2b + fig2c + fig2d + plot_layout(guides = 'collect', ncol = 2, widths = c(2, 2)) + plot_annotation(tag_levels = 'A')
+suppl_fig2 <- fig2a + fig2b + fig2c + fig2d + plot_layout(guides = 'collect', ncol = 2, widths = c(2, 2)) + plot_annotation(tag_levels = 'A')
+
+ggsave("figures/supplementary-figure-2.pdf", plot = suppl_fig2, width = 15, height = 12)
+ggsave("figures/supplementary-figure-2.png", plot = suppl_fig2, width = 15, height = 12, dpi = 300)
+
+suppl_fig2
 ```
 
-**Figure 4. Taxonomy distribution and NMDS plot.** Taxonomic distribution of genomes in the ENVISION dataset at the class level. Poseidonia (Archaea) group, Alphaproteobacteria and Gammaproteobacteria are the most abundant ones. A plot represents the total community, B plot accounts only for species containing at least one expressed rhodopsin gene. Non-metric multidimensional scaling (NMDS) of metatranscriptomic profiles based on log-transformed TPM and Bray–Curtis distances. (C) NMDS including all genomes grouped by class. (D) NMDS restricted to genomes expressing rhodopsin. In both panels, samples are colored by season and shaped by site (coast/offshore). Polygons indicate the multivariate hulls of each season × site combination. PERMANOVA indicates significant effects of both season and site in the two datasets (p = 0.001 for both factors), and the homogeneity of dispersions (betadisper) was non-significant (p \> 0.05), confirming that differences reflect changes in community structure rather than dispersion. Season explains 51.9% of the variation in the full community and 59.2% in the rhodopsin-expressing subset. Stress values (0.145 and 0.125) indicate good ordination quality.
+**Supplementary figure 2. Metatranscriptomics analysis across the coast and offshore stations and seasons.** A) Relative expression at the class level of all genomes with active expression across the two sampled stations. B) Relative expression at the class level of the genomes with active rhodopsin expression. C, D) Non-metric multidimensional scaling (NMDS) of metatranscriptomic profiles based on log-transformed TPM and Bray–Curtis distances. C) NMDS based on the transcription of all genomes grouped by class. D) NMDS based on the transcription of the genomes expressing rhodopsin. In panels C and D, sample symbols are colored by season and shaped by site (coast/offshore). Polygons indicate the multivariate hulls of each season and site combination. The homogeneity of dispersions (betadisper) was non-significant (p > 0.05), confirming that differences reflected changes in community transcription rather than dispersion. Season explained 51.9% and 59.2% of the variation in the plots for all genomes and the rhodopsin-expressing subset, respectively.
 
 Genomes that actively express rhodopsin in this dataset represent \~60% on average across samples.
 
@@ -2257,7 +2272,7 @@ datatable(prd.table %>%
   
 ```
 
-**Supplementary figure 8. NMDS based on rhodopsin expression.** NMDS of rhodopsin expression grouped at family level and by samples.
+**NMDS based on rhodopsin expression.** NMDS of rhodopsin expression grouped at family level and by samples. (Not currently assigned a figure number in the manuscript — Figure S8 is a different plot, see `fine-scale-analysis.qmd`.)
 
 ### Contribution of genomes to rhodopsin expression in ENVISION dataset
 
@@ -2362,7 +2377,7 @@ s9bcdef <- lapply(top5_family, make_family_pie, data = counts.rhodo.genomes, pal
 
 ```
 
-**Supplementary figure 9. Pie charts.** Figure showing contribution of different genomes to the family rhodopsin expression. In the center, contribution of top family to rhodopsin expression.
+**Pie charts.** Figure showing contribution of different genomes to the family rhodopsin expression. In the center, contribution of top family to rhodopsin expression. (Not currently assigned a figure number in the manuscript — Figure S9 is a different plot, see `fine-scale-analysis.qmd`.)
 
 ## 5. Heatmaps of top 30 genomes with active rhodopsin expression
 

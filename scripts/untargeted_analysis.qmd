@@ -823,6 +823,89 @@ f6a <- pheatmap(
 )
 ```
 
+### Supplementary Figure S10
+
+`f6a` above hides its column names because it was designed to sit on top of
+`f6b` (the transporter heatmap) in a `fig6-final` chunk that combined them
+into a single figure — that combination is now outdated and has been removed.
+This standalone version re-draws the same heatmap (identical matrix, breaks,
+and significance annotation) with the genome labels turned back on, and
+color-codes them by family using the same `family_class_colors` palette as
+Figure 3A / Figure 5.
+
+```{r supplementary-figure-10}
+#| fig-width: 14
+#| fig-height: 20
+#| warning: false
+#| echo: false
+
+f6a.standalone <- pheatmap(
+  top30enrichment.genome.matrix,
+  color = colors_seq,
+  breaks = breaks_seq,
+  cluster_rows = TRUE,
+  cluster_cols = TRUE,
+  scale = "none",
+  na_col = "grey90",
+  fontsize_col = 8,
+  treeheight_row = 4,
+  treeheight_col = 4,
+  cellwidth = 15,
+  cellheight = 15,
+  show_colnames = TRUE,
+  display_numbers = sig_matrix,
+  number_color = "black",
+  name = "NES",
+  silent = TRUE
+)
+
+# --- Color-code the column labels by family (same family_class_colors
+# palette/pattern as Figure 3A / Figure 5) ---
+# Match on the genome accession only (leading token of genome_family), not
+# the full string: genus spelling can differ across tables, so a full-string
+# match can silently miss genomes (see fine-scale-analysis.qmd fig3a fix).
+s10.genome_class <- counts.rhodo.genomes %>%
+  distinct(genome, family, class) %>%
+  group_by(genome) %>%
+  slice(1) %>%
+  ungroup() %>%
+  mutate(
+    family_class = paste0(family, "_", class),
+    family_class = ifelse(family_class %in% names(family_class_colors),
+                           family_class, "other_family_other_class")
+  )
+
+s10.col_labels <- colnames(top30enrichment.genome.matrix)
+s10.genome_ids_sorted <- s10.genome_class$genome[order(-nchar(s10.genome_class$genome))]
+s10.find_genome <- function(x) {
+  hit <- s10.genome_ids_sorted[startsWith(x, paste0(s10.genome_ids_sorted, "_"))]
+  if (length(hit) == 0) NA_character_ else hit[1]
+}
+s10.col_genome_id <- vapply(s10.col_labels, s10.find_genome, character(1))
+
+s10.col_colors <- setNames(
+  family_class_colors[s10.genome_class$family_class[match(s10.col_genome_id, s10.genome_class$genome)]],
+  s10.col_labels
+)
+
+stopifnot(identical(f6a.standalone@column_names_param$labels, colnames(top30enrichment.genome.matrix)))
+f6a.standalone@column_names_param$gp$col <- s10.col_colors[f6a.standalone@column_names_param$labels]
+
+# ~48 pathway rows at cellheight 15pt plus long rotated genome labels need
+# far more vertical room than the 12x12in first attempt gave (top of the
+# heatmap was clipped); 14x20in fits it with margin to spare.
+f6a.standalone.gg <- as.ggplot(f6a.standalone)
+
+ggsave("figures/supplementary-figure-10.pdf", plot = f6a.standalone.gg,
+       width = 14, height = 20, device = cairo_pdf)
+ggsave("figures/supplementary-figure-10.png", plot = f6a.standalone.gg,
+       width = 14, height = 20, dpi = 300)
+
+f6a.standalone.gg
+```
+
+**Fig. S10 Pathway enrichment (GSEA) of KEGG pathways co-varying with rhodopsin expression across the 30 genomes expressing most rhodopsin.** Heatmap of normalized enrichment scores (NES) from a GSEA run per genome on the Spearman correlation between each KO and rhodopsin (K04641), restricted to pathways significantly enriched in at least 5 of the 30 genomes; rows (pathways) and columns (genomes) are hierarchically clustered, with positive NES (orange) indicating pathways co-expressed with rhodopsin and negative NES (green) indicating pathways anti-correlated with it. Genome labels are colored by family, using the same color scheme as Fig. 3A and Fig. 5. Asterisks inside cells mark significance (\* p.adjust < 0.05, \*\* < 0.01, \*\*\* < 0.001); an additional \* appended to a genome label marks genomes with coastal-dominant abundance.
+
 ## Correlation analysis - Motility
 
 ```{r prepare-motility-table}
@@ -1422,22 +1505,6 @@ f5a.col_colors <- setNames(
 # time via `...` errors ("matched by multiple actual arguments").
 stopifnot(identical(f5a@column_names_param$labels, colnames(cor_matrix)))
 f5a@column_names_param$gp$col <- f5a.col_colors[f5a@column_names_param$labels]
-```
-
-```{r fig6-final}
-#| fig-height:  19
-#| fig-width: 15
-fig6a <- as.ggplot(f6a)
-fig6b <- as.ggplot(f6b)
-x <- fig6a / fig6b + plot_annotation(tag_levels = 'A')
-ggsave(
-  filename = "heatmap.svg",
-  plot = x,
-  width = 30,
-  height = 55,
-  units = "cm"     # or "cm"
-)
-
 ```
 
 ## Looking into three genomes
