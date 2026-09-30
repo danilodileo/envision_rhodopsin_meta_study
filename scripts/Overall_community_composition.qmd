@@ -680,18 +680,23 @@ taxon_summary <- function(df, value_col) {
     pivot_longer(everything(), names_to = "taxon", values_to = value_col)
 }
 
-a <- funtax %>% taxon_summary("Total")
-b <- counts %>% taxon_summary("Total")
-c <- funtax %>% filter(annotation == "rhodopsin") %>% taxon_summary("rhodopsin")
+# "a" (full dataset) used to be computed but left out of the join below —
+# the resulting table was missing one of its four columns.
+a <- funtax %>% taxon_summary("Full dataset")
+b <- counts %>% taxon_summary("Active transcriptome")
+c <- funtax %>% filter(annotation == "rhodopsin") %>% taxon_summary("Rhodopsin-encoding genomes")
 d <- counts %>% filter(annotation == "rhodopsin") %>% taxon_summary("Active rhodopsin")
 
-summary_table <- reduce(list(b, c,d), left_join, by = "taxon")
+summary_table <- reduce(list(a, b, c, d), left_join, by = "taxon")
 
-#write_tsv(summary_table, 'run.magmap.30-9-2025/summary_tables/summary_table_genomes.tsv')
+dir.create("tables", showWarnings = FALSE)
+write_csv(summary_table, "tables/supplementary-table-1.csv")
 
 summary_table %>%
   gt()
 ```
+
+**Supplementary table 1. Number of taxa detected across the full dataset, active transcriptome, rhodopsin-encoding genomes, and actively expressed rhodopsin group.**
 
 **Table 2. Summary of genomes used in nf-core/magmap**. The table shows number of genomes for which at least one reads mapped to from ENVISION dataset. total: all genomes; prd: genomes that encodes at least one rhodopsin gene; active prd: genomes that actively express rhodopsin.
 
@@ -1475,6 +1480,22 @@ res_permanova.total <- adonis2(
   by = 'margin',
   data = metadata_ordered %>% select(sample, site, season))
 
+# Tidy an adonis2() result into the "Factor / df / Sum of Squares / R2 /
+# F-Model / p-value" layout used in the manuscript's supplementary tables.
+tidy_permanova <- function(res) {
+  as.data.frame(res) %>%
+    rownames_to_column("Factor") %>%
+    rename(
+      df = Df,
+      `Sum of Squares` = SumOfSqs,
+      `R2` = R2,
+      `F-Model` = F,
+      `p-value` = `Pr(>F)`
+    )
+}
+
+dir.create("tables", showWarnings = FALSE)
+write_csv(tidy_permanova(res_permanova.total), "tables/supplementary-table-2.csv")
 
 #########################################
 # Permutation test for adonis under reduced model
@@ -1523,6 +1544,8 @@ res_permanova.rhodo.genomes <- adonis2(
   dist_mat.rhodo.genomes ~ season + site,
   by='margin',
   data = metadata_ordered.rhodo.genomes %>% select(sample, site, season))
+
+write_csv(tidy_permanova(res_permanova.rhodo.genomes), "tables/supplementary-table-3.csv")
 
 ########################################
 #Permutation test for adonis under reduced model
@@ -1798,7 +1821,7 @@ ggsave("figures/supplementary-figure-2.png", plot = suppl_fig2, width = 15, heig
 suppl_fig2
 ```
 
-**Supplementary figure 2. Metatranscriptomics analysis across the coast and offshore stations and seasons.** A) Relative expression at the class level of all genomes with active expression across the two sampled stations. B) Relative expression at the class level of the genomes with active rhodopsin expression. C, D) Non-metric multidimensional scaling (NMDS) of metatranscriptomic profiles based on log-transformed TPM and Bray–Curtis distances. C) NMDS based on the transcription of all genomes grouped by class. D) NMDS based on the transcription of the genomes expressing rhodopsin. In panels C and D, sample symbols are colored by season and shaped by site (coast/offshore). Polygons indicate the multivariate hulls of each season and site combination. The homogeneity of dispersions (betadisper) was non-significant (p > 0.05), confirming that differences reflected changes in community transcription rather than dispersion. Season explained 51.9% and 59.2% of the variation in the plots for all genomes and the rhodopsin-expressing subset, respectively.
+**Supplementary figure 2. Metatranscriptomics analysis across the coast and offshore stations and seasons.** A) Relative expression at the class level of all genomes with active expression across the two sampled stations. B) Relative expression at the class level of the genomes with active rhodopsin expression. C, D) Non-metric multidimensional scaling (NMDS) of metatranscriptomic profiles based on log-transformed TPM and Bray–Curtis distances. C) NMDS based on the transcription of all genomes grouped by class. D) NMDS based on the transcription of the genomes expressing rhodopsin. In panels C and D, sample symbols are colored by season and shaped by site (coast/offshore). Polygons indicate the multivariate hulls of each season and site combination. The homogeneity of dispersions (betadisper) was non-significant (p > 0.05), confirming that differences reflected changes in community transcription rather than dispersion. Season explained 37.8% and 42.4% of the variation in the plots for all genomes and the rhodopsin-expressing subset, respectively (PERMANOVA; see Supplementary tables 2 and 3).
 
 Genomes that actively express rhodopsin in this dataset represent \~60% on average across samples.
 
@@ -2112,6 +2135,74 @@ ht3 <- Heatmap(
   rect_gp = gpar(col = "black", lwd = 0.3),
   column_title = 'Rhodopsin expression'
 )
+```
+
+### Full genome stats table (size, completeness, contamination, taxonomy)
+
+One row per genome that attracted reads in this dataset, full GTDB taxonomy,
+assembly size, CheckM completeness/contamination, and size corrected for
+completeness (`genome_size / (completeness / 100)`), with the top 30
+rhodopsin-expressing genomes sorted to the top (same rhodopsin-TPM ranking as
+`top30.rhodo.genomes` used for Figure 4).
+
+**Coverage gap**: CheckM completeness/contamination is only available for
+NCBI/GTDB reference genomes (`magmap.genome_metadata.tsv.gz`); the locally
+assembled/binned genomes (`metabat2.*`, `concoct.*` — 348 of them in the full
+recruitment catalog, one of which, `metabat2.225`, is in the top 30) have no
+CheckM run recorded anywhere in this working directory, so those fields are
+`NA` here. Genome size for the top 30 is filled in from `genome-size.txt`
+regardless (covers `metabat2.225` too); size for local bins outside the top
+30 is unavailable for the same reason.
+
+```{r genome-stats-table}
+#| warning: false
+#| echo: false
+
+genome_metadata_qc <- read_tsv(
+  'summary_tables/magmap.genome_metadata.tsv.gz',
+  show_col_types = FALSE
+) %>%
+  select(genome = accno, checkm_completeness, checkm_contamination, genome_size)
+
+taxonomy_full <- read_tsv('summary_tables/taxonomy.tsv.gz', show_col_types = FALSE) %>%
+  rename(genome = accno)
+
+genome_size_top30 <- read_table('summary_tables/genome-size.txt', show_col_types = FALSE)
+
+genomes_with_reads <- counts %>% distinct(genome)
+
+rhodo_rank <- top30.rhodo.genomes %>%
+  arrange(desc(rhodo_tpm)) %>%
+  mutate(top30_rhodopsin_rank = row_number()) %>%
+  select(genome, top30_rhodopsin_rank)
+
+genome_stats_table <- genomes_with_reads %>%
+  left_join(taxonomy_full, join_by(genome)) %>%
+  left_join(genome_metadata_qc, join_by(genome)) %>%
+  left_join(genome_size_top30, join_by(genome)) %>%
+  mutate(
+    genome_size = coalesce(size, genome_size),
+    qc_source = ifelse(
+      is.na(checkm_completeness),
+      "local bin — no CheckM data in this pipeline run",
+      "GTDB/NCBI reference genome"
+    ),
+    genome_size_completeness_corrected = genome_size / (checkm_completeness / 100)
+  ) %>%
+  left_join(rhodo_rank, join_by(genome)) %>%
+  select(
+    top30_rhodopsin_rank, genome, domain, phylum, class, order, family, genus, species,
+    genome_size, checkm_completeness, checkm_contamination,
+    genome_size_completeness_corrected, qc_source
+  ) %>%
+  arrange(is.na(top30_rhodopsin_rank), top30_rhodopsin_rank, genome)
+
+dir.create("tables", showWarnings = FALSE)
+write_csv(genome_stats_table, "tables/genome-stats-table.csv.gz")
+
+genome_stats_table %>%
+  slice_head(n = 35) %>%
+  gt()
 ```
 
 ```{r all-samples-rhodopsin-expression}
@@ -3109,6 +3200,9 @@ res_permanova.prd <- adonis2(
   dist_mat.prd ~ no3 + po4 + Turbidity + chla_tot + pa + temperature + Salinity,,
   by = 'margin',
   data = meta_ord_rhodo)
+
+dir.create("tables", showWarnings = FALSE)
+write_csv(tidy_permanova(res_permanova.prd), "tables/supplementary-table-4.csv")
 
 nmds.prd <- ggplot() +
   # polygon outlines per season-site group (no fill)
